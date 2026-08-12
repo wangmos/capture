@@ -13,3 +13,6 @@ publish/
 
 # WPF 标记编译产生的临时工程文件
 *_wpftmp.csproj
+
+# 发布打包产物
+WeCapture-v*.zip
