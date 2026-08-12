@@ -1,5 +1,6 @@
 bin/
 obj/
+publish/
 
 # Visual Studio / Rider / VS Code
 .vs/

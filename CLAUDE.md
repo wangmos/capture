@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-WeCapture — a WPF (.NET 10, `net10.0-windows10.0.19041.0`) Windows tray app that replicates the WeChat screenshot tool: global hotkey → freeze all screens → select region (with window/control hover snapping) → annotate → copy / save / pin / OCR. Single project, no solution file, no test project. UI strings and XML doc comments are Chinese; keep that convention when editing.
+WeCapture — a WPF (.NET 10, `net10.0-windows`) Windows tray app that replicates the WeChat screenshot tool: global hotkey → freeze all screens → select region (with window/control hover snapping) → annotate → copy / save / pin / OCR. Single project, no solution file, no test project. UI strings and XML doc comments are Chinese; keep that convention when editing.
 
 ## Build & run
 
@@ -12,7 +12,7 @@ WeCapture — a WPF (.NET 10, `net10.0-windows10.0.19041.0`) Windows tray app th
 dotnet build D:/works/c++/capture/WeCapture.csproj
 ```
 
-The exe lands at `bin/Debug/net10.0-windows10.0.19041.0/WeCapture.exe` (or `bin/Release/...`). Args:
+The exe lands at `bin/Debug/net10.0-windows/WeCapture.exe` (or `bin/Release/...`). Args:
 
 - no args — resident tray icon only
 - `--capture` — start a capture session immediately
@@ -30,7 +30,7 @@ WinForms is referenced only for tray/screen APIs; `WeCapture.csproj` removes the
 
 ## Testing (no unit tests — driven UI tests)
 
-There is no test framework. Behavior is verified by PowerShell driver scripts in `C:\temp` (`test_number.ps1`, `test_expand.ps1`, `test_mosaic.ps1`, `test_reselect.ps1`, `test_ocr2.ps1`, …). The pattern each script follows:
+There is no test framework. Behavior is verified by PowerShell driver scripts in `tests/ui/` (see `tests/ui/README.md` for the table of what each covers). The pattern each script follows:
 
 1. snapshot the line count of `%TEMP%\wec_log.txt` (written by `Core/TraceLog.cs` — the app has no console, so this file is the only runtime signal);
 2. `Start-Process WeCapture.exe --capture` *from inside the script* (launching `--capture` before the script starts causes `OVERLAY_TIMEOUT`);
@@ -38,7 +38,7 @@ There is no test framework. Behavior is verified by PowerShell driver scripts in
 4. assert on new log lines (`Number placed idx=…`, `Selection expanded to …`, `SetTool …`) and on clipboard image dimensions.
 
 ```bash
-powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\temp\test_number.ps1'
+powershell -NoProfile -ExecutionPolicy Bypass -File tests\ui\test_number.ps1
 ```
 
 Because the log lines are the test contract, do not rename or reformat existing `TraceLog.Log` messages without updating the scripts that grep them.
