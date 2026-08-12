@@ -52,7 +52,7 @@ public sealed class CaptureSession
         Core.TraceLog.Log("CaptureSession ctor begin");
         _settings = settings;
         _monitors = MonitorSet.CaptureAll();
-        _model = new SessionModel(_monitors.VirtualBounds);
+        _model = new SessionModel(_monitors.VirtualBounds) { AutoTextSelect = settings.AutoTextSelect };
 
         _model.CopyConfirmed += DoCopyAndExit;
         _model.ExitRequested += ExitAll;

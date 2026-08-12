@@ -10,6 +10,9 @@ public sealed class AppSettings
     public bool AutoStart { get; set; }
     public string? LastSaveDir { get; set; }
 
+    /// <summary>框选完成后自动进入取字模式（后台识别一次，可直接在图上选文字）。</summary>
+    public bool AutoTextSelect { get; set; } = true;
+
     private static string SettingsDir =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WeCapture");
 

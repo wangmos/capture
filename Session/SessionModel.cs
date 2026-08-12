@@ -32,6 +32,9 @@ public sealed class SessionModel
     public bool CanUndo => Annotations.Count > 0;
 
     // ---------- 图上选字 ----------
+    /// <summary>选区确定后自动进入取字模式（来自设置）。</summary>
+    public bool AutoTextSelect { get; set; } = true;
+
     /// <summary>当前选区的文字层；为 null 表示尚未识别。</summary>
     public Ocr.TextLayer? TextLayer { get; private set; }
 
@@ -99,17 +102,20 @@ public sealed class SessionModel
         _gestureMoved = false;
         _anchor = gpt;
 
+        // 取字模式按"是否压在文字上"分流：压中文字的手势归文字，其余一律走原有逻辑。
+        // 这样取字即使默认开启，移动选区、双击复制、外部扩展也都不受影响。
+        bool onText = State == UIState.Selected && IsOnText(gpt);
+
         // 双击选区内部 → 复制退出（Down 的 ClickCount 可靠；任意标注工具下都生效）
-        // 取字模式除外：那里的双击/三击是取词、取行
-        if (clickCount >= 2 && State == UIState.Selected && ActiveTool != Tool.TextSelect &&
+        // 文字上除外：那里的双击/三击是取词、取行
+        if (clickCount >= 2 && State == UIState.Selected && !onText &&
             Selection is RectI dcs && dcs.Contains(gpt))
         {
             CopyConfirmed?.Invoke();
             return;
         }
 
-        // 取字模式：选区被冻结，所有按下都用于选文字
-        if (State == UIState.Selected && ActiveTool == Tool.TextSelect)
+        if (onText)
         {
             BeginTextSelection(gpt, clickCount);
             RaiseChanged();
@@ -142,7 +148,8 @@ public sealed class SessionModel
                 switch (hit)
                 {
                     case DragMode.Move:
-                        if (ActiveTool == Tool.None)
+                        // 取字模式下没压中文字时，与"无工具"一致：拖动 = 移动选区
+                        if (ActiveTool is Tool.None or Tool.TextSelect)
                         {
                             DragMode = DragMode.Move;
                             _moveOrigin = sel;
@@ -175,6 +182,19 @@ public sealed class SessionModel
         }
         RaiseChanged();
     }
+
+    /// <summary>丢弃文字层（选区被清空/重开时调用，避免旧文字残留在新画面上）。</summary>
+    private void ClearTextLayer()
+    {
+        TextLayer = null;
+        _textLayerSource = null;
+        _textAnchor = _textCaret = 0;
+    }
+
+    /// <summary>该点是否压在已识别的文字上（取字模式下才成立）。</summary>
+    private bool IsOnText(PointI gpt) =>
+        ActiveTool == Tool.TextSelect &&
+        TextLayer is { IsEmpty: false } layer && layer.HitsText(gpt);
 
     /// <summary>取字：单击定锚点，双击取词，三击取行。</summary>
     private void BeginTextSelection(PointI gpt, int clickCount)
@@ -224,6 +244,17 @@ public sealed class SessionModel
     /// <summary>后台识别完成，装入文字层。</summary>
     public void SetTextLayer(Ocr.TextLayer layer, RectI source)
     {
+        TextLayerLoading = false;
+
+        // 识别期间选区又变了：这份结果作废，按新选区重来
+        if (Selection is not RectI cur || cur != source)
+        {
+            TraceLog.Log("TextLayer discarded, selection changed during recognition");
+            if (ActiveTool == Tool.TextSelect) EnterTextSelect();
+            RaiseChanged();
+            return;
+        }
+
         TextLayer = layer;
         _textLayerSource = source;
         TextLayerLoading = false;
@@ -288,6 +319,7 @@ public sealed class SessionModel
                 {
                     // 拖动 → 视为重新框选（同微信：清空标注）
                     Annotations.Clear();
+                    ClearTextLayer();
                     ActiveTool = Tool.None;
                     State = UIState.Selecting;
                     DragMode = DragMode.NewSelect;
@@ -401,14 +433,20 @@ public sealed class SessionModel
                 break;   // 选区间已在拖动中更新，松手保留
         }
 
-        // 双击选区内部（无工具、未移动）→ 复制退出
+        // 双击选区内部（无工具/取字但没压中文字、未移动）→ 复制退出
         if (State == UIState.Selected && clickCount >= 2 && !_gestureMoved &&
-            ActiveTool == Tool.None && Selection is RectI ds && ds.Contains(gpt))
+            ActiveTool is Tool.None or Tool.TextSelect && !IsOnText(gpt) &&
+            Selection is RectI ds && ds.Contains(gpt))
         {
             RaiseChanged();
             CopyConfirmed?.Invoke();
             return;
         }
+
+        // 选区刚刚确定/调整完 → 自动进入取字并在后台识别
+        if (mode is DragMode.NewSelect or DragMode.Move or DragMode.ExpandPending
+            or (>= DragMode.ResizeLeft and <= DragMode.ResizeBottomRight))
+            MaybeAutoTextSelect();
 
         RaiseChanged();
     }
@@ -472,13 +510,10 @@ public sealed class SessionModel
 
     public void OnRightDown()
     {
-        // 取字模式：右键先撤销文字选择，再退出取字，不直接清掉选区
-        if (State == UIState.Selected && ActiveTool == Tool.TextSelect)
+        // 有选中的文字时，右键先撤销文字选择（取字默认开启，不能让右键直接清掉选区）
+        if (State == UIState.Selected && HasTextSelection)
         {
-            if (HasTextSelection)
-                _textAnchor = _textCaret = 0;
-            else
-                SetTool(Tool.None);
+            _textAnchor = _textCaret = 0;
             RaiseChanged();
             return;
         }
@@ -496,6 +531,7 @@ public sealed class SessionModel
                 State = UIState.Idle;
                 Selection = null;
                 Annotations.Clear();
+                ClearTextLayer();
                 ActiveTool = Tool.None;
                 DragMode = DragMode.None;
                 break;
@@ -569,19 +605,20 @@ public sealed class SessionModel
                         return true;
 
                     case UIState.Selected:
-                        // 取字模式：先撤选中的文字，再退出取字，最后才轮到清选区
-                        if (ActiveTool == Tool.TextSelect && HasTextSelection)
+                        // 先撤选中的文字；取字是默认模式，按 Esc 不该退出它，而是继续清选区
+                        if (HasTextSelection)
                         {
                             _textAnchor = _textCaret = 0;
                             RaiseChanged();
                             return true;
                         }
-                        if (ActiveTool != Tool.None)
+                        if (ActiveTool is not (Tool.None or Tool.TextSelect))
                             SetTool(Tool.None);
                         else if (Selection != null)
                         {
                             Selection = null;
                             Annotations.Clear();
+                            ClearTextLayer();
                         }
                         else
                         {
@@ -616,18 +653,37 @@ public sealed class SessionModel
         TraceLog.Log($"SetTool {tool} active={ActiveTool}");
 
         if (ActiveTool == Tool.TextSelect)
-        {
-            _textAnchor = _textCaret = 0;
-            // 选区变过就得重新识别（文字层按选区内容构建）
-            if (!TextLayerLoading && (TextLayer == null || _textLayerSource != Selection))
-            {
-                TextLayer = null;
-                TextLayerLoading = true;
-                TextLayerRequested?.Invoke();
-            }
-        }
+            EnterTextSelect();
 
         RaiseChanged();
+    }
+
+    /// <summary>进入取字：清空已选文字，并在文字层缺失或选区变过时请求重新识别。</summary>
+    private void EnterTextSelect()
+    {
+        ActiveTool = Tool.TextSelect;
+        _textAnchor = _textCaret = 0;
+
+        if (!TextLayerLoading && (TextLayer == null || _textLayerSource != Selection))
+        {
+            TextLayer = null;
+            TextLayerLoading = true;
+            TextLayerRequested?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// 选区确定后自动进入取字（等同于自动点一下工具条上的 I 图标）。
+    /// 用户已经选了标注工具时不打扰。
+    /// </summary>
+    private void MaybeAutoTextSelect()
+    {
+        if (!AutoTextSelect) return;
+        if (State != UIState.Selected || Selection is not RectI sel || sel.IsEmpty) return;
+        if (ActiveTool is not (Tool.None or Tool.TextSelect)) return;
+
+        TraceLog.Log($"AutoTextSelect entered sel={sel}");
+        EnterTextSelect();
     }
 
     public void SetDrawColor(Color c)
@@ -718,11 +774,8 @@ public sealed class SessionModel
 
             case UIState.Selected:
             case UIState.TextEditing:
-                // 取字模式：选区被冻结，文字上显示文本光标
-                if (ActiveTool == Tool.TextSelect)
-                    return TextLayer is { IsEmpty: false } tl && tl.HitsText(gpt)
-                        ? System.Windows.Input.Cursors.IBeam
-                        : System.Windows.Input.Cursors.Arrow;
+                // 压在文字上显示文本光标；其余位置沿用普通光标（移动/缩放/扩展）
+                if (IsOnText(gpt)) return System.Windows.Input.Cursors.IBeam;
 
                 if (Selection is RectI sel)
                 {
@@ -738,7 +791,8 @@ public sealed class SessionModel
                         case DragMode.ResizeTopRight:
                         case DragMode.ResizeBottomLeft: return System.Windows.Input.Cursors.SizeNESW;
                         case DragMode.Move:
-                            return ActiveTool == Tool.None
+                            // 取字与"无工具"一样：选区内部是移动手势
+                            return ActiveTool is Tool.None or Tool.TextSelect
                                 ? System.Windows.Input.Cursors.SizeAll
                                 : System.Windows.Input.Cursors.Cross;
                     }

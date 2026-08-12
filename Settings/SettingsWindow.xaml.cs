@@ -37,6 +37,7 @@ public partial class SettingsWindow : Window
 
         HotkeyBox.SetValue(settings.Hotkey);
         AutoStartBox.IsChecked = settings.AutoStart;
+        AutoTextSelectBox.IsChecked = settings.AutoTextSelect;
 
         Loaded += (_, _) => LogRects();
         ContentRendered += (_, _) =>
@@ -86,6 +87,7 @@ public partial class SettingsWindow : Window
         }
 
         _settings.AutoStart = AutoStartBox.IsChecked == true;
+        _settings.AutoTextSelect = AutoTextSelectBox.IsChecked == true;
         AutoStart.Apply(_settings.AutoStart);
 
         _settings.Save();

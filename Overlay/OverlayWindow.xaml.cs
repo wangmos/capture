@@ -47,12 +47,19 @@ public partial class OverlayWindow : Window
         { Interval = TimeSpan.FromMilliseconds(50) };
         _hoverTimer.Tick += (_, _) => DetectHoverIfIdle();
 
-        // 会话期间保持最前：置顶画中画等窗口可能抢 Z 序，定期重置顶
+        // 会话期间保持最前：置顶画中画等窗口可能抢 Z 序，定期重置顶。
+        // 注意不能用 Topmost=false→true：那会让覆盖层瞬间掉出置顶层，
+        // 下面正在播放的视频/动画就会以定时器频率闪出来（表现为频闪）。
+        // SetWindowPos(HWND_TOPMOST) 是幂等的，全程不离开置顶层，因此无闪烁。
         _topmostTimer = new System.Windows.Threading.DispatcherTimer
         { Interval = TimeSpan.FromMilliseconds(400) };
         _topmostTimer.Tick += (_, _) =>
         {
-            if (Topmost) { Topmost = false; Topmost = true; }
+            if (!Topmost) return;
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero)
+                NativeMethods.SetWindowPos(hwnd, NativeMethods.HWND_TOPMOST, 0, 0, 0, 0,
+                    NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
         };
 
         Closed += (_, _) =>
