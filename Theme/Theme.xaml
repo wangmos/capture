@@ -215,47 +215,68 @@
         </Setter>
     </Style>
 
-    <!-- 多行只读文本（OCR 结果）：细滚动条，等宽阅读体验 -->
+    <!-- 细滚动条。必须同时覆盖两个方向：只按竖向写（写死 Width + Track 反向）
+         套到横向滚动条上会变成一条竖线，且完全无法拖动。 -->
+    <ControlTemplate x:Key="SlimThumb" TargetType="Thumb">
+        <Border Background="#40FFFFFF" CornerRadius="3" Margin="2"/>
+    </ControlTemplate>
+
+    <ControlTemplate x:Key="SlimTrackButton" TargetType="RepeatButton">
+        <Border Background="Transparent"/>
+    </ControlTemplate>
+
     <Style x:Key="SlimScrollBar" TargetType="ScrollBar">
-        <Setter Property="Width" Value="10"/>
         <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Width" Value="10"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">
                     <Grid Background="Transparent">
                         <Track x:Name="PART_Track" IsDirectionReversed="True">
                             <Track.Thumb>
-                                <Thumb>
-                                    <Thumb.Template>
-                                        <ControlTemplate TargetType="Thumb">
-                                            <Border Background="#40FFFFFF" CornerRadius="3" Margin="3,0"/>
-                                        </ControlTemplate>
-                                    </Thumb.Template>
-                                </Thumb>
+                                <Thumb Template="{StaticResource SlimThumb}"/>
                             </Track.Thumb>
                             <Track.IncreaseRepeatButton>
-                                <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0">
-                                    <RepeatButton.Template>
-                                        <ControlTemplate TargetType="RepeatButton">
-                                            <Border Background="Transparent"/>
-                                        </ControlTemplate>
-                                    </RepeatButton.Template>
-                                </RepeatButton>
+                                <RepeatButton Command="ScrollBar.PageDownCommand"
+                                              Template="{StaticResource SlimTrackButton}"/>
                             </Track.IncreaseRepeatButton>
                             <Track.DecreaseRepeatButton>
-                                <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0">
-                                    <RepeatButton.Template>
-                                        <ControlTemplate TargetType="RepeatButton">
-                                            <Border Background="Transparent"/>
-                                        </ControlTemplate>
-                                    </RepeatButton.Template>
-                                </RepeatButton>
+                                <RepeatButton Command="ScrollBar.PageUpCommand"
+                                              Template="{StaticResource SlimTrackButton}"/>
                             </Track.DecreaseRepeatButton>
                         </Track>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto"/>
+                <Setter Property="Height" Value="10"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Grid Background="Transparent">
+                                <Track x:Name="PART_Track" Orientation="Horizontal">
+                                    <Track.Thumb>
+                                        <Thumb Template="{StaticResource SlimThumb}"/>
+                                    </Track.Thumb>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageRightCommand"
+                                                      Template="{StaticResource SlimTrackButton}"/>
+                                    </Track.IncreaseRepeatButton>
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageLeftCommand"
+                                                      Template="{StaticResource SlimTrackButton}"/>
+                                    </Track.DecreaseRepeatButton>
+                                </Track>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="ReaderTextBox" TargetType="TextBox">

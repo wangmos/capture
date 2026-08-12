@@ -98,7 +98,13 @@ public partial class ImageViewerWindow : Window
                 Content = icon(),
                 ToolTip = tip,
             };
-            b.Click += (_, _) => _editor.SetTool(tool);
+            b.Click += (_, _) =>
+            {
+                // 马赛克需要一张预先块化的整图。必须在选中工具时就备好——
+                // 否则画出来的马赛克要等到保存/复制触发生成后才突然显形。
+                if (tool == Tool.Mosaic) EnsureMosaic();
+                _editor.SetTool(tool);
+            };
             _toolButtons[tool] = b;
             ToolsRow.Children.Add(b);
         }
@@ -283,14 +289,40 @@ public partial class ImageViewerWindow : Window
         }
 
         // 没选工具时，左键拖动 = 浏览图片（免去反复拨滚动条去定位局部）
-        if (!CanPan) return;
+        if (StartPan(e)) e.Handled = true;
+    }
+
+    /// <summary>中键拖动始终可平移，不必先取消当前标注工具。</summary>
+    private void OnImageMiddleDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle) return;
+        if (StartPan(e)) e.Handled = true;
+    }
+
+    private void OnImageMiddleUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle || !_panning) return;
+        EndPan();
+        e.Handled = true;
+    }
+
+    private bool StartPan(MouseEventArgs e)
+    {
+        if (!CanPan) return false;
         _panning = true;
         _panStart = e.GetPosition(Scroller);
         _panOffsetX = Scroller.HorizontalOffset;
         _panOffsetY = Scroller.VerticalOffset;
         ImageHost.CaptureMouse();
         Cursor = Cursors.ScrollAll;
-        e.Handled = true;
+        return true;
+    }
+
+    private void EndPan()
+    {
+        _panning = false;
+        ImageHost.ReleaseMouseCapture();
+        Cursor = Cursors.Arrow;
     }
 
     private void OnImageMove(object sender, MouseEventArgs e)
@@ -320,15 +352,13 @@ public partial class ImageViewerWindow : Window
 
     private void OnImageUp(object sender, MouseButtonEventArgs e)
     {
-        ImageHost.ReleaseMouseCapture();
-
         if (_panning)
         {
-            _panning = false;
-            Cursor = Cursors.Arrow;
+            EndPan();
             return;
         }
 
+        ImageHost.ReleaseMouseCapture();
         _editor.OnUp(ToImagePoint(e.GetPosition(ImageHost)));
     }
 
@@ -395,7 +425,7 @@ public partial class ImageViewerWindow : Window
         conv.CopyPixels(buf, _image.PixelWidth * 4, 0);
         _mosaic = MosaicImageFactory.CreateFrom(buf, _image.PixelWidth, _image.PixelHeight);
 
-        Layer.Attach(_editor, _image.PixelWidth, _image.PixelHeight, _mosaic);
+        Layer.SetMosaic(_mosaic);
         return _mosaic;
     }
 

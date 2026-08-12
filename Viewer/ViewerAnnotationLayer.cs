@@ -24,11 +24,19 @@ public sealed class ViewerAnnotationLayer : FrameworkElement
 
     public void Attach(ViewerEditor editor, int imageWidth, int imageHeight, BitmapSource? mosaic)
     {
+        Detach();
         _editor = editor;
         _imageW = imageWidth;
         _imageH = imageHeight;
         _mosaic = mosaic;
         editor.Changed += InvalidateVisual;
+    }
+
+    /// <summary>装入马赛克源图。不要用重新 Attach 的方式做——那会把 Changed 事件重复订阅。</summary>
+    public void SetMosaic(BitmapSource mosaic)
+    {
+        _mosaic = mosaic;
+        InvalidateVisual();
     }
 
     public void Detach()

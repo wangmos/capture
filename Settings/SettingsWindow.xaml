@@ -15,7 +15,8 @@
         <StackPanel>
 
             <!-- 标题栏（自绘：可拖动 + 关闭） -->
-            <Grid Height="44" MouseLeftButtonDown="OnTitleBarDrag">
+            <!-- Background 不可省：没有背景的容器不参与命中测试，标题栏空白处点不到，窗口就拖不动 -->
+            <Grid Height="44" Background="Transparent" MouseLeftButtonDown="OnTitleBarDrag">
                 <TextBlock Text="设置" Style="{StaticResource WindowTitle}" Margin="18,0,0,0"/>
                 <Button Style="{StaticResource CloseButton}" Click="OnCancel"
                         HorizontalAlignment="Right" Margin="0,0,8,0" ToolTip="关闭"/>
