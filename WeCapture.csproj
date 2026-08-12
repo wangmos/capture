@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WeCapture</RootNamespace>
+    <AssemblyName>WeCapture</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <Version>1.0.0</Version>
+    <Product>WeCapture</Product>
+    <Description>微信截图风格工具</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WinForms 仅用于托盘/屏幕 API，去掉隐式全局 using 避免与 WPF 类型冲突 -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Paddle.Runtime.win_x64" Version="3.3.0.1" />
+    <PackageReference Include="PaddleOCRSharp" Version="6.2.0" />
+  </ItemGroup>
+
+</Project>

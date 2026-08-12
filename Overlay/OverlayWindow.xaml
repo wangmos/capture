@@ -1,0 +1,35 @@
+<Window x:Class="WeCapture.Overlay.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:WeCapture.Overlay"
+        xmlns:tb="clr-namespace:WeCapture.Toolbar"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
+        Focusable="True" ShowActivated="False"
+        PreviewMouseLeftButtonDown="OnPreviewLeftDown"
+        PreviewMouseLeftButtonUp="OnPreviewLeftUp"
+        PreviewMouseMove="OnPreviewMouseMove"
+        PreviewMouseRightButtonDown="OnPreviewRightDown"
+        PreviewKeyDown="OnPreviewKeyDown">
+    <Grid>
+        <!-- 冻结的屏幕截图（1:1 铺满本屏） -->
+        <Image x:Name="BgImage" Stretch="Fill"/>
+
+        <!-- 遮罩/选区/标注自绘层 -->
+        <local:AnnotationLayer x:Name="Layer"/>
+
+        <Canvas>
+            <!-- 坐标 + 取色提示 -->
+            <local:CursorTip x:Name="CursorTip" Visibility="Hidden"/>
+            <!-- 宽×高尺寸提示 -->
+            <local:SizeTip x:Name="SizeTip" Visibility="Hidden"/>
+            <!-- 浮动工具条 -->
+            <tb:ToolbarControl x:Name="Toolbar" Visibility="Collapsed"/>
+            <!-- 文字编辑框 -->
+            <TextBox x:Name="TextEdit" Visibility="Hidden"
+                     Background="Transparent" BorderThickness="0" Padding="0"
+                     FontFamily="Microsoft YaHei" AcceptsReturn="False"
+                     MinWidth="40"/>
+        </Canvas>
+    </Grid>
+</Window>
