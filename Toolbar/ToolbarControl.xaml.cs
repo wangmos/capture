@@ -54,18 +54,18 @@ public partial class ToolbarControl : UserControl
 
     private void BuildButtons()
     {
-        var tools = new (Tool Tool, string Tip, Func<UIElement> Icon)[]
+        var tools = new (Tool Tool, Core.ShortcutAction Action, string Tip, Func<UIElement> Icon)[]
         {
-            (Tool.Rectangle, "矩形 (R)", () => ToolIcons.Create(Tool.Rectangle)),
-            (Tool.Ellipse, "椭圆 (O)", () => ToolIcons.Create(Tool.Ellipse)),
-            (Tool.Arrow, "箭头 (A)", () => ToolIcons.Create(Tool.Arrow)),
-            (Tool.Pen, "画笔 (P)", () => ToolIcons.Create(Tool.Pen)),
-            (Tool.Text, "文字 (T)", () => ToolIcons.TextGlyph("A", 14)),
-            (Tool.Mosaic, "马赛克 (M)", () => ToolIcons.Create(Tool.Mosaic)),
-            (Tool.Number, "标号 (N)　序号从 1 递增，区域外点击自动扩展选区", () => ToolIcons.Number()),
+            (Tool.Rectangle, Core.ShortcutAction.ToolRectangle, "矩形", () => ToolIcons.Create(Tool.Rectangle)),
+            (Tool.Ellipse, Core.ShortcutAction.ToolEllipse, "椭圆", () => ToolIcons.Create(Tool.Ellipse)),
+            (Tool.Arrow, Core.ShortcutAction.ToolArrow, "箭头", () => ToolIcons.Create(Tool.Arrow)),
+            (Tool.Pen, Core.ShortcutAction.ToolPen, "画笔", () => ToolIcons.Create(Tool.Pen)),
+            (Tool.Text, Core.ShortcutAction.ToolText, "文字", () => ToolIcons.TextGlyph("A", 14)),
+            (Tool.Mosaic, Core.ShortcutAction.ToolMosaic, "马赛克", () => ToolIcons.Create(Tool.Mosaic)),
+            (Tool.Number, Core.ShortcutAction.ToolNumber, "标号　序号从 1 递增，区域外点击自动扩展选区", () => ToolIcons.Number()),
         };
 
-        foreach (var (tool, tip, icon) in tools)
+        foreach (var (tool, action, tip, icon) in tools)
         {
             var b = new ToggleButton
             {
@@ -75,13 +75,15 @@ public partial class ToolbarControl : UserControl
             };
             b.Click += (_, _) => ToolSelected?.Invoke(tool);
             _toolButtons[tool] = b;
+            _tips.Add((b, action, tip));
             ButtonsRow.Children.Add(b);
         }
 
         AddSeparator();
 
         _buttons.Clear();
-        var undo = MakeButton(ToolIcons.Undo(), "撤销 (Ctrl+Z)", () => UndoClicked?.Invoke());
+        var undo = MakeButton(ToolIcons.Undo(), "撤销", () => UndoClicked?.Invoke());
+        _tips.Add((undo, Core.ShortcutAction.Undo, "撤销"));
         ButtonsRow.Children.Add(undo);
         _buttons.Add(undo);
 
@@ -90,38 +92,45 @@ public partial class ToolbarControl : UserControl
         {
             Style = (Style)FindResource("TbToggle"),
             Content = ToolIcons.TextSelect(),
-            ToolTip = "取字 (I)　在图上直接拖选文字，Ctrl+C 复制",
+            ToolTip = "取字",
         };
         textSelect.Click += (_, _) => ToolSelected?.Invoke(Tool.TextSelect);
         _toolButtons[Tool.TextSelect] = textSelect;
+        _tips.Add((textSelect, Core.ShortcutAction.ToolTextSelect, "取字　在图上直接拖选文字"));
         ButtonsRow.Children.Add(textSelect);
 
-        var ocr = MakeButton(ToolIcons.Ocr(), "识别全部文字 (Ctrl+E)", () => OcrClicked?.Invoke());
+        var ocr = MakeButton(ToolIcons.Ocr(), "识别全部文字", () => OcrClicked?.Invoke());
+        _tips.Add((ocr, Core.ShortcutAction.Ocr, "识别全部文字"));
         ButtonsRow.Children.Add(ocr);
         _buttons.Add(ocr);
 
         AddSeparator();
 
         var longShot = MakeButton(ToolIcons.LongShot(),
-            "长截图 (Ctrl+L)　应用自动向下滚动并拼接", () => LongShotClicked?.Invoke());
+            "长截图　应用自动向下滚动并拼接", () => LongShotClicked?.Invoke());
+        _tips.Add((longShot, Core.ShortcutAction.LongShot, "长截图　应用自动向下滚动并拼接"));
         ButtonsRow.Children.Add(longShot);
         _buttons.Add(longShot);
 
-        var pin = MakeButton(ToolIcons.Pin(), "钉住 (Ctrl+P)", () => PinClicked?.Invoke());
+        var pin = MakeButton(ToolIcons.Pin(), "钉住", () => PinClicked?.Invoke());
+        _tips.Add((pin, Core.ShortcutAction.Pin, "钉住"));
         ButtonsRow.Children.Add(pin);
         _buttons.Add(pin);
 
-        var save = MakeButton(ToolIcons.Save(), "保存 (Ctrl+S)", () => SaveClicked?.Invoke());
+        var save = MakeButton(ToolIcons.Save(), "保存", () => SaveClicked?.Invoke());
+        _tips.Add((save, Core.ShortcutAction.Save, "保存"));
         ButtonsRow.Children.Add(save);
         _buttons.Add(save);
 
-        var copy = MakeButton(ToolIcons.Copy(), "复制 (Ctrl+C)", () => CopyClicked?.Invoke());
+        var copy = MakeButton(ToolIcons.Copy(), "复制", () => CopyClicked?.Invoke());
+        _tips.Add((copy, Core.ShortcutAction.Copy, "复制"));
         ButtonsRow.Children.Add(copy);
         _buttons.Add(copy);
 
         AddSeparator();
 
-        var exit = MakeButton(ToolIcons.Exit(), "退出截图 (Esc)", () => ExitClicked?.Invoke());
+        var exit = MakeButton(ToolIcons.Exit(), "退出截图", () => ExitClicked?.Invoke());
+        _tips.Add((exit, Core.ShortcutAction.Exit, "退出截图"));
         ButtonsRow.Children.Add(exit);
         _buttons.Add(exit);
     }
@@ -148,10 +157,31 @@ public partial class ToolbarControl : UserControl
         });
     }
 
+    /// <summary>按钮 → 动作 + 不含快捷键的基础提示文本，用于按当前绑定重写 ToolTip。</summary>
+    private readonly List<(FrameworkElement Button, Core.ShortcutAction Action, string BaseTip)> _tips = new();
+
+    private bool _shortcutsApplied;
+
+    /// <summary>把当前（可能被用户改过的）快捷键写进按钮提示。</summary>
+    public void ApplyShortcuts(Core.ShortcutMap map)
+    {
+        foreach (var (button, action, baseTip) in _tips)
+        {
+            var def = map.Get(action);
+            button.ToolTip = def.IsNone ? baseTip : $"{baseTip} ({def})";
+        }
+    }
+
     /// <summary>按模型状态刷新（去重，避免拖拽时频繁重建）。</summary>
     public void RefreshFrom(SessionModel model)
     {
         _model = model;
+
+        if (!_shortcutsApplied)
+        {
+            _shortcutsApplied = true;
+            ApplyShortcuts(model.Shortcuts);
+        }
 
         foreach (var (tool, btn) in _toolButtons)
             btn.IsChecked = model.ActiveTool == tool;

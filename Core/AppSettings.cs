@@ -13,6 +13,9 @@ public sealed class AppSettings
     /// <summary>框选完成后自动进入取字模式（后台识别一次，可直接在图上选文字）。</summary>
     public bool AutoTextSelect { get; set; } = true;
 
+    /// <summary>截图界面内的快捷键，动作名 → 组合键文本；缺失项用默认值。</summary>
+    public Dictionary<string, string>? Shortcuts { get; set; }
+
     private static string SettingsDir =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WeCapture");
 
@@ -33,9 +36,10 @@ public sealed class AppSettings
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 设置损坏时回退默认
+            // 设置损坏时回退默认。必须留痕：否则一个坏字段会让用户悄无声息地丢掉全部设置
+            TraceLog.Log($"AppSettings.Load failed, falling back to defaults: {ex.Message}");
         }
         return new AppSettings();
     }

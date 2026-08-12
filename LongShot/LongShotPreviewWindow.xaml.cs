@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using WeCapture.Core;
 using WeCapture.Export;
@@ -28,13 +29,30 @@ public partial class LongShotPreviewWindow : Window
         Img.Source = image;
         SizeText.Text = $"{image.PixelWidth} × {image.PixelHeight}";
 
-        // 窗口不超过屏幕的 80%，避免超长图把窗口撑出屏幕
-        var work = SystemParameters.WorkArea;
-        Width = Math.Min(Math.Max(image.PixelWidth + 90, 520), work.Width * 0.8);
-        Height = Math.Min(work.Height * 0.85, 900);
-
-        Loaded += (_, _) => FitWidth();
+        SizeWindowToImage();
+        Loaded += (_, _) => FitWindow();
         PreviewKeyDown += OnKey;
+    }
+
+    /// <summary>
+    /// 按图片长宽比给窗口定尺寸（限制在工作区内），让整图能以自然比例铺满视口，
+    /// 而不是开出一个大窗配一张小图。
+    /// </summary>
+    private void SizeWindowToImage()
+    {
+        var work = SystemParameters.WorkArea;
+        double maxW = work.Width * 0.85, maxH = work.Height * 0.9;
+
+        // 视口之外的固定开销：窗口外边距/标题栏/底部操作栏
+        const double chromeW = 60, chromeH = 150;
+
+        double fit = Math.Min((maxW - chromeW) / _image.PixelWidth,
+                              (maxH - chromeH) / _image.PixelHeight);
+        fit = Math.Min(fit, 1.0);
+
+        // 下限不是随意取的：底部那排缩放/操作按钮排下来约需 660px，窄于此就会互相压盖
+        Width = Math.Clamp(_image.PixelWidth * fit + chromeW, 660, Math.Max(660, maxW));
+        Height = Math.Clamp(_image.PixelHeight * fit + chromeH, 420, maxH);
     }
 
     // ================= 缩放 =================
@@ -44,7 +62,21 @@ public partial class LongShotPreviewWindow : Window
         _zoom = Math.Clamp(zoom, MinZoom, MaxZoom);
         Img.Width = _image.PixelWidth * _zoom;
         Img.Height = _image.PixelHeight * _zoom;
+
+        // 放大看细节时用最近邻，保持像素锐利；缩小时用高质量重采样避免摩尔纹
+        RenderOptions.SetBitmapScalingMode(Img,
+            _zoom >= 2.0 ? BitmapScalingMode.NearestNeighbor : BitmapScalingMode.HighQuality);
+
         ZoomText.Text = $"{_zoom * 100:0}%";
+    }
+
+    /// <summary>整图适应窗口（默认视图）。</summary>
+    private void FitWindow()
+    {
+        double w = Scroller.ActualWidth - 4, h = Scroller.ActualHeight - 4;
+        if (w <= 0 || h <= 0 || _image.PixelWidth <= 0 || _image.PixelHeight <= 0) return;
+        ApplyZoom(Math.Min(w / _image.PixelWidth, h / _image.PixelHeight));
+        Scroller.ScrollToTop();
     }
 
     private void FitWidth()
@@ -75,6 +107,8 @@ public partial class LongShotPreviewWindow : Window
     private void OnZoomIn(object sender, RoutedEventArgs e) => ApplyZoom(_zoom * 1.25);
 
     private void OnZoomOut(object sender, RoutedEventArgs e) => ApplyZoom(_zoom / 1.25);
+
+    private void OnFitWindow(object sender, RoutedEventArgs e) => FitWindow();
 
     private void OnFitWidth(object sender, RoutedEventArgs e) => FitWidth();
 
@@ -118,7 +152,8 @@ public partial class LongShotPreviewWindow : Window
         switch (e.Key)
         {
             case Key.Escape: Close(); break;
-            case Key.D0 or Key.NumPad0: FitWidth(); break;
+            case Key.D0 or Key.NumPad0: FitWindow(); break;
+            case Key.W: FitWidth(); break;
             case Key.D1 or Key.NumPad1: ApplyZoom(1.0); break;
             case Key.OemPlus or Key.Add when ctrl: ApplyZoom(_zoom * 1.25); break;
             case Key.OemMinus or Key.Subtract when ctrl: ApplyZoom(_zoom / 1.25); break;

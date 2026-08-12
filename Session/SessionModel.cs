@@ -551,70 +551,71 @@ public sealed class SessionModel
 
     // ========== 键盘 ==========
 
-    /// <summary>带修饰键的入口：Ctrl+C 复制（取字模式下复制文字）、Ctrl+A 全选文字、Ctrl+Z 撤销。</summary>
+    /// <summary>用户可自定义的快捷键表。</summary>
+    public ShortcutMap Shortcuts { get; set; } = ShortcutMap.CreateDefault();
+
+    /// <summary>带修饰键的入口：先查自定义快捷键表，未命中再走 Esc/Enter 的固有逻辑。</summary>
     /// <returns>是否已处理。</returns>
     public bool OnKey(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys mods)
     {
-        if ((mods & System.Windows.Input.ModifierKeys.Control) != 0)
-        {
-            switch (key)
-            {
-                case System.Windows.Input.Key.C:
-                    if (ActiveTool == Tool.TextSelect && TextLayer is { IsEmpty: false })
-                    {
-                        CopyTextSelection();
-                        return true;
-                    }
-                    if (State == UIState.Selected && Selection != null)
-                    {
-                        CopyConfirmed?.Invoke();
-                        return true;
-                    }
-                    return false;
-
-                case System.Windows.Input.Key.A:
-                    if (ActiveTool == Tool.TextSelect && TextLayer is { IsEmpty: false } layer)
-                    {
-                        _textAnchor = 0;
-                        _textCaret = layer.Length;
-                        RaiseChanged();
-                        return true;
-                    }
-                    return false;
-
-                case System.Windows.Input.Key.Z:
-                    if (CanUndo)
-                    {
-                        Undo();
-                        return true;
-                    }
-                    return false;
-
-                case System.Windows.Input.Key.S:
-                    return Raise(SaveRequested);
-
-                case System.Windows.Input.Key.P:
-                    return Raise(PinRequested);
-
-                case System.Windows.Input.Key.E:
-                    return Raise(OcrRequested);
-
-                case System.Windows.Input.Key.L:
-                    return Raise(LongShotRequested);
-            }
-
-            return false;
-        }
-
-        // 无修饰键的单字母 = 切换标注工具（文字编辑期间窗口已提前拦截，不会走到这里）
-        if (mods == System.Windows.Input.ModifierKeys.None &&
-            State == UIState.Selected && ToolForKey(key) is Tool tool)
-        {
-            SetTool(tool);
+        if (Shortcuts.Resolve(key, mods) is ShortcutAction action && Execute(action))
             return true;
-        }
 
+        // Esc 始终保底可用：即使用户把"取消/退出"改绑到别的键，也不该被困在覆盖层里
         return OnKey(key);
+    }
+
+    /// <summary>执行一个快捷键动作；当前状态下不适用时返回 false（交回按键让其他逻辑处理）。</summary>
+    private bool Execute(ShortcutAction action)
+    {
+        switch (action)
+        {
+            case ShortcutAction.ToolRectangle:
+            case ShortcutAction.ToolEllipse:
+            case ShortcutAction.ToolArrow:
+            case ShortcutAction.ToolPen:
+            case ShortcutAction.ToolText:
+            case ShortcutAction.ToolMosaic:
+            case ShortcutAction.ToolNumber:
+            case ShortcutAction.ToolTextSelect:
+                if (State != UIState.Selected) return false;
+                SetTool(ToolOf(action));
+                return true;
+
+            case ShortcutAction.Undo:
+                if (!CanUndo) return false;
+                Undo();
+                return true;
+
+            case ShortcutAction.SelectAllText:
+                if (ActiveTool != Tool.TextSelect || TextLayer is not { IsEmpty: false } layer) return false;
+                _textAnchor = 0;
+                _textCaret = layer.Length;
+                RaiseChanged();
+                return true;
+
+            case ShortcutAction.Copy:
+                if (ActiveTool == Tool.TextSelect && TextLayer is { IsEmpty: false })
+                {
+                    CopyTextSelection();
+                    return true;
+                }
+                if (State == UIState.Selected && Selection != null)
+                {
+                    CopyConfirmed?.Invoke();
+                    return true;
+                }
+                return false;
+
+            case ShortcutAction.Save: return Raise(SaveRequested);
+            case ShortcutAction.Pin: return Raise(PinRequested);
+            case ShortcutAction.Ocr: return Raise(OcrRequested);
+            case ShortcutAction.LongShot: return Raise(LongShotRequested);
+
+            case ShortcutAction.Confirm: return OnKey(System.Windows.Input.Key.Enter);
+            case ShortcutAction.Exit: return OnKey(System.Windows.Input.Key.Escape);
+        }
+        return false;
     }
 
     /// <summary>动作类快捷键：仅在已有选区时有效。</summary>
@@ -625,18 +626,16 @@ public sealed class SessionModel
         return true;
     }
 
-    /// <summary>工具快捷键表（单字母，取英文首字母便于记忆）。</summary>
-    public static Tool? ToolForKey(System.Windows.Input.Key key) => key switch
+    private static Tool ToolOf(ShortcutAction action) => action switch
     {
-        System.Windows.Input.Key.R => Tool.Rectangle,
-        System.Windows.Input.Key.O => Tool.Ellipse,
-        System.Windows.Input.Key.A => Tool.Arrow,
-        System.Windows.Input.Key.P => Tool.Pen,
-        System.Windows.Input.Key.T => Tool.Text,
-        System.Windows.Input.Key.M => Tool.Mosaic,
-        System.Windows.Input.Key.N => Tool.Number,
-        System.Windows.Input.Key.I => Tool.TextSelect,
-        _ => null,
+        ShortcutAction.ToolRectangle => Tool.Rectangle,
+        ShortcutAction.ToolEllipse => Tool.Ellipse,
+        ShortcutAction.ToolArrow => Tool.Arrow,
+        ShortcutAction.ToolPen => Tool.Pen,
+        ShortcutAction.ToolText => Tool.Text,
+        ShortcutAction.ToolMosaic => Tool.Mosaic,
+        ShortcutAction.ToolNumber => Tool.Number,
+        _ => Tool.TextSelect,
     };
 
     /// <returns>是否已处理。</returns>

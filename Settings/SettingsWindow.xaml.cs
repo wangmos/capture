@@ -39,6 +39,9 @@ public partial class SettingsWindow : Window
         AutoStartBox.IsChecked = settings.AutoStart;
         AutoTextSelectBox.IsChecked = settings.AutoTextSelect;
 
+        _shortcuts = ShortcutMap.FromDictionary(settings.Shortcuts);
+        BuildShortcutRows();
+
         Loaded += (_, _) => LogRects();
         ContentRendered += (_, _) =>
             Dispatcher.BeginInvoke(new Action(LogRects),
@@ -47,7 +50,10 @@ public partial class SettingsWindow : Window
         // Show() 模式下 IsDefault 不生效：回车 = 保存，Esc = 取消（热键捕获期除外）
         PreviewKeyDown += (_, e) =>
         {
+            // Preview 事件从窗口向下隧道，会先于绑定框拿到按键：
+            // 录制快捷键期间必须让路，否则按 Esc/Enter 会直接关窗或保存
             if (HotkeyBox.IsCapturing) return;
+            if (System.Windows.Input.Keyboard.FocusedElement is ShortcutBox) return;
 
             if (e.Key == System.Windows.Input.Key.Enter)
             {
@@ -60,6 +66,66 @@ public partial class SettingsWindow : Window
                 e.Handled = true;
             }
         };
+    }
+
+    private ShortcutMap _shortcuts = ShortcutMap.CreateDefault();
+    private readonly Dictionary<ShortcutAction, ShortcutBox> _shortcutBoxes = new();
+
+    /// <summary>按目录生成"动作 + 绑定框"的行；重建时清空重来。</summary>
+    private void BuildShortcutRows()
+    {
+        ShortcutList.Children.Clear();
+        _shortcutBoxes.Clear();
+
+        foreach (var (action, name) in ShortcutMap.Catalog)
+        {
+            var row = new System.Windows.Controls.Grid { Margin = new Thickness(8, 3, 8, 3) };
+            row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+            { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+            { Width = GridLength.Auto });
+
+            var label = new System.Windows.Controls.TextBlock
+            {
+                Text = name,
+                Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            row.Children.Add(label);
+
+            var box = new ShortcutBox
+            {
+                Style = (Style)FindResource("ModernTextBox"),
+                Width = 148,
+                Height = 30,
+                FontSize = 12,
+            };
+            box.SetValue(_shortcuts.Get(action));
+            box.Changed += b =>
+            {
+                // Set 内部会解除与其他动作的冲突，重刷所有行才能反映出来
+                _shortcuts.Set(action, b.Value);
+                RefreshShortcutBoxes();
+            };
+            System.Windows.Controls.Grid.SetColumn(box, 1);
+            row.Children.Add(box);
+
+            _shortcutBoxes[action] = box;
+            ShortcutList.Children.Add(row);
+        }
+    }
+
+    private void RefreshShortcutBoxes()
+    {
+        foreach (var (action, box) in _shortcutBoxes)
+            box.SetValue(_shortcuts.Get(action));
+    }
+
+    private void OnResetShortcuts(object sender, RoutedEventArgs e)
+    {
+        _shortcuts = ShortcutMap.CreateDefault();
+        RefreshShortcutBoxes();
     }
 
     private void OnCancel(object sender, RoutedEventArgs e) => Close();
@@ -102,6 +168,7 @@ public partial class SettingsWindow : Window
 
         _settings.AutoStart = AutoStartBox.IsChecked == true;
         _settings.AutoTextSelect = AutoTextSelectBox.IsChecked == true;
+        _settings.Shortcuts = _shortcuts.ToDictionary();
         AutoStart.Apply(_settings.AutoStart);
 
         _settings.Save();

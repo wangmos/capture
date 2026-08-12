@@ -7,6 +7,10 @@
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         FontFamily="{StaticResource UiFont}">
 
+    <Window.Resources>
+        <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimScrollBar}"/>
+    </Window.Resources>
+
     <Border Style="{StaticResource ShellBorder}" Margin="14">
         <StackPanel>
 
@@ -42,6 +46,26 @@
                           Content="开机自动启动" Margin="0,14,0,0"/>
                 <TextBlock Text="登录后常驻托盘，随时用热键截图。"
                            Style="{StaticResource HintText}" Margin="28,5,0,0"/>
+
+                <Border Height="1" Background="{StaticResource BorderSubtleBrush}" Margin="0,18,0,0"/>
+
+                <!-- 快捷键 -->
+                <Grid Margin="0,18,0,0">
+                    <TextBlock Text="快捷键" Style="{StaticResource SectionLabel}"/>
+                    <Button x:Name="ResetShortcutsButton" Content="恢复默认"
+                            Style="{StaticResource SecondaryButton}" Height="26" MinWidth="72"
+                            FontSize="12" HorizontalAlignment="Right" Click="OnResetShortcuts"/>
+                </Grid>
+                <TextBlock Text="点击右侧方框后按下新组合键；Delete 清除绑定，Esc 取消录制。组合键被占用时会自动解除原来的绑定。"
+                           Style="{StaticResource HintText}" Margin="0,7,0,0"/>
+
+                <Border Margin="0,10,0,0" CornerRadius="8" Background="{StaticResource CardBrush}"
+                        BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
+                    <ScrollViewer x:Name="ShortcutScroller" MaxHeight="228"
+                                  VerticalScrollBarVisibility="Auto" Padding="4,6">
+                        <StackPanel x:Name="ShortcutList"/>
+                    </ScrollViewer>
+                </Border>
             </StackPanel>
 
             <!-- 底部操作 -->
