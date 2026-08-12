@@ -217,8 +217,20 @@ public sealed class CaptureSession
     {
         if (_model.Selection == null) return;
         var img = RenderSelection();
-        if (SaveHelper.SaveImage(img, _settings))
-            ExitAll();
+
+        // 写文件可能因目录只读/磁盘满/文件被占用而抛异常。不接住的话
+        // 未处理异常会终结整个常驻进程——用户不仅没保存成功，截图内容也一起没了。
+        try
+        {
+            if (SaveHelper.SaveImage(img, _settings))
+                ExitAll();
+        }
+        catch (Exception ex)
+        {
+            Core.TraceLog.Log($"Save failed: {ex}");
+            MessageBox.Show($"保存失败：{ex.Message}\n\n截图仍保留，可以改存到别处或直接复制。", "WeCapture",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+        }
     }
 
     private void DoPinAndExit()

@@ -53,20 +53,29 @@ public sealed class AnnotationLayer : FrameworkElement
 
         var vb = mon.BoundsPx;
 
-        // ---------- 1. 遮罩：全屏 Exclude（选区/悬停框）----------
-        Geometry mask = new RectangleGeometry(new Rect(0, 0, vb.W, vb.H));
-
+        // ---------- 1. 遮罩：挖去选区/悬停框 ----------
+        // 用四条边矩形而不是 CombinedGeometry(Exclude)：后者是几何布尔运算，
+        // 而这里每次鼠标移动都要整屏重画一次，四个矩形的结果完全等价且几乎不花钱。
         RectI? cutout = m.State switch
         {
             UIState.Idle => m.HoverRect,
             _ => m.Selection,
         };
-        if (cutout is RectI c && c.IntersectsWith(vb) && !c.IsEmpty)
+
+        if (cutout is RectI c && !c.IsEmpty && c.IntersectsWith(vb))
         {
-            var hole = new RectangleGeometry(ToLocal(c, vb));
-            mask = new CombinedGeometry(GeometryCombineMode.Exclude, mask, hole);
+            var hole = ToLocal(c.Intersect(vb), vb);
+            double w = vb.W, h = vb.H;
+
+            if (hole.Top > 0) dc.DrawRectangle(MaskBrush, null, new Rect(0, 0, w, hole.Top));
+            if (hole.Bottom < h) dc.DrawRectangle(MaskBrush, null, new Rect(0, hole.Bottom, w, h - hole.Bottom));
+            if (hole.Left > 0) dc.DrawRectangle(MaskBrush, null, new Rect(0, hole.Top, hole.Left, hole.Height));
+            if (hole.Right < w) dc.DrawRectangle(MaskBrush, null, new Rect(hole.Right, hole.Top, w - hole.Right, hole.Height));
         }
-        dc.DrawGeometry(MaskBrush, null, mask);
+        else
+        {
+            dc.DrawRectangle(MaskBrush, null, new Rect(0, 0, vb.W, vb.H));
+        }
 
         // ---------- 2. 悬停高亮框（Idle） ----------
         if (m.State == UIState.Idle && m.HoverRect is RectI hv && hv.IntersectsWith(vb))
@@ -117,7 +126,9 @@ public sealed class AnnotationLayer : FrameworkElement
             RenderTextLayer(dc, m, sel3, vb);
     }
 
-    private static readonly Pen TextBoxPen = CreateFrozenPen(Color.FromArgb(0x66, 0x1E, 0x90, 0xFF), 1);
+    private static readonly Pen TextBoxPen = CreateFrozenPen(Color.FromArgb(0xCC, 0x4D, 0xA9, 0xFF), 1.4);
+    private static readonly Brush TextBoxFillBrush =
+        CreateFrozen(new SolidColorBrush(Color.FromArgb(0x1F, 0x1E, 0x90, 0xFF)));
     private static readonly Brush TextHighlightBrush =
         CreateFrozen(new SolidColorBrush(Color.FromArgb(0x59, 0x1E, 0x90, 0xFF)));
     private static readonly Brush HintBackBrush =
@@ -133,10 +144,10 @@ public sealed class AnnotationLayer : FrameworkElement
 
         if (m.TextLayer is { IsEmpty: false } layer)
         {
-            // 文字行框：淡蓝细线，提示"这里可以选"
+            // 文字行框：蓝色描边 + 极淡底色，明确提示"这里可以选"
             foreach (var box in layer.LineBoxes)
                 if (box.IntersectsWith(vb))
-                    dc.DrawRectangle(null, TextBoxPen, new Rect(box.X, box.Y, box.W, box.H));
+                    dc.DrawRectangle(TextBoxFillBrush, TextBoxPen, new Rect(box.X, box.Y, box.W, box.H));
 
             if (m.HasTextSelection)
                 foreach (var r in layer.HighlightRects(m.TextSelectionStart, m.TextSelectionEnd))

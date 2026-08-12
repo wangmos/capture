@@ -17,8 +17,15 @@ public sealed class HoverDetector
     private readonly HashSet<IntPtr> _excludeHwnds = new();
 
     private RectI? _candidate;
-    private DateTime _candidateSince;
+    private long _candidateSince;
     private RectI? _committed;
+
+    // UIA 是跨进程 COM，目标进程无响应时可以阻塞数秒——绝不能在 UI 线程上同步调用，
+    // 否则整个覆盖层连 Esc 都按不动。改为后台探测，结果留给下一次命中使用。
+    private readonly object _uiaLock = new();
+    private volatile bool _uiaBusy;
+    private PointI _uiaPoint;
+    private RectI? _uiaRect;
 
     /// <summary>排除覆盖层自身的窗口句柄。</summary>
     public void AddExcludeHwnd(IntPtr hwnd)
@@ -41,7 +48,7 @@ public sealed class HoverDetector
         if (c == _committed)
             return _committed;
 
-        var now = DateTime.Now;
+        long now = Environment.TickCount64;   // 鼠标每次移动都会走这里，别用 DateTime.Now
         if (c != _candidate)
         {
             _candidate = c;
@@ -49,7 +56,7 @@ public sealed class HoverDetector
             return _committed;
         }
 
-        if ((now - _candidateSince).TotalMilliseconds >= StableMs)
+        if (now - _candidateSince >= StableMs)
         {
             _committed = c;
             return c;
@@ -60,7 +67,7 @@ public sealed class HoverDetector
     private RectI? DetectCore(PointI gpt)
     {
         var win32 = DetectWin32(gpt);
-        var uia = DetectUia(gpt);
+        var uia = TakeUiaRefinement(gpt);
 
         // UIA 结果只有比 Win32 结果更精细（被包含）时才采用；
         // 若 UIA 命中的是覆盖层自身（整屏大矩形），包含检查会自然过滤掉。
@@ -118,7 +125,57 @@ public sealed class HoverDetector
         return null;
     }
 
-    // ---------- UIA（尽力增强，任何异常都静默降级） ----------
+    // ---------- UIA（后台探测，尽力增强，任何异常都静默降级） ----------
+
+    /// <summary>
+    /// 取上一次后台探测的结果（仅当探测位置与当前点基本一致），并为当前点排一次新探测。
+    /// 因此 UIA 的细化总是滞后一轮（约 40~50ms）——悬停本来就有 60ms 防抖，感知不到。
+    /// </summary>
+    private RectI? TakeUiaRefinement(PointI gpt)
+    {
+        RectI? fresh = null;
+        lock (_uiaLock)
+        {
+            if (_uiaRect is RectI r &&
+                Math.Abs(_uiaPoint.X - gpt.X) <= 2 && Math.Abs(_uiaPoint.Y - gpt.Y) <= 2)
+                fresh = r;
+        }
+
+        QueueUiaProbe(gpt);
+        return fresh;
+    }
+
+    /// <summary>
+    /// 同一时刻只允许一个探测在飞。若某次探测卡死，最坏结果是 UIA 细化就此失效，
+    /// 而不是把 UI 线程一起拖住——这正是我们要的降级方式。
+    /// </summary>
+    private void QueueUiaProbe(PointI gpt)
+    {
+        if (_uiaBusy) return;
+        _uiaBusy = true;
+
+        Task.Run(() =>
+        {
+            RectI? r = null;
+            try
+            {
+                r = DetectUia(gpt);
+            }
+            catch
+            {
+                // 忽略：UIA 出错就退回纯 Win32 结果
+            }
+            finally
+            {
+                lock (_uiaLock)
+                {
+                    _uiaPoint = gpt;
+                    _uiaRect = r;
+                }
+                _uiaBusy = false;
+            }
+        });
+    }
 
     private static RectI? DetectUia(PointI gpt)
     {

@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:WeCapture.Overlay"
         xmlns:tb="clr-namespace:WeCapture.Toolbar"
-        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        WindowStyle="None" AllowsTransparency="False" Background="Black"
         Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
         Focusable="True" ShowActivated="False"
         PreviewMouseLeftButtonDown="OnPreviewLeftDown"
@@ -11,6 +11,9 @@
         PreviewMouseMove="OnPreviewMouseMove"
         PreviewMouseRightButtonDown="OnPreviewRightDown"
         PreviewKeyDown="OnPreviewKeyDown">
+    <!-- AllowsTransparency 保持 False：开启它会把窗口切到 WPF 的分层窗口路径（软件合成），
+         而这是个全屏覆盖层、拖拽时每帧整屏重绘，代价极高。这里也根本不需要窗口透明：
+         冻结截图 BgImage 铺满整屏且不透明，遮罩是画上去的半透明矩形。 -->
     <Grid>
         <!-- 冻结的屏幕截图（1:1 铺满本屏） -->
         <Image x:Name="BgImage" Stretch="Fill"/>

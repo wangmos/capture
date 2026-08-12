@@ -19,15 +19,28 @@ public abstract class Annotation
 
     public abstract void Render(DrawingContext dc, in RenderEnv env);
 
+    // 渲染每帧都会调用这两个方法，而拖拽时每次鼠标移动就是一帧：
+    // 不缓存的话每帧、每个标注都要新建并冻结一次 Brush/Pen，纯属垃圾。
+    // 标注的 Color/ThicknessPx 都是 init 的，缓存天然安全。
+    private static readonly Dictionary<uint, Brush> BrushCache = new();
+    private static readonly Dictionary<(uint, double), Pen> PenCache = new();
+
     protected static Brush BrushOf(Color c)
     {
+        uint key = ((uint)c.A << 24) | ((uint)c.R << 16) | ((uint)c.G << 8) | c.B;
+        if (BrushCache.TryGetValue(key, out var cached)) return cached;
+
         var b = new SolidColorBrush(c);
         b.Freeze();
+        BrushCache[key] = b;
         return b;
     }
 
     protected static Pen PenOf(Color c, double thicknessPx)
     {
+        uint colorKey = ((uint)c.A << 24) | ((uint)c.R << 16) | ((uint)c.G << 8) | c.B;
+        if (PenCache.TryGetValue((colorKey, thicknessPx), out var cached)) return cached;
+
         var p = new Pen(BrushOf(c), thicknessPx)
         {
             StartLineCap = PenLineCap.Round,
@@ -35,6 +48,7 @@ public abstract class Annotation
             LineJoin = PenLineJoin.Round,
         };
         p.Freeze();
+        PenCache[(colorKey, thicknessPx)] = p;
         return p;
     }
 

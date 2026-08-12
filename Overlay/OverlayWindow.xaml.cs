@@ -18,7 +18,7 @@ public partial class OverlayWindow : Window
     private readonly HoverDetector _hover;
     private readonly System.Windows.Threading.DispatcherTimer _hoverTimer;
     private readonly System.Windows.Threading.DispatcherTimer _topmostTimer;
-    private DateTime _lastHoverDetect = DateTime.MinValue;
+    private long _lastHoverDetect;
     private PointI _lastMouseGlobal;
     private bool _mouseSeen;
     private int _downClickCount;
@@ -230,8 +230,9 @@ public partial class OverlayWindow : Window
         // Idle：窗口/控件悬停探测（40ms 节流，探测器内部再防抖 60ms；静止时由定时器续推）
         if (Model.State == UIState.Idle)
         {
-            var now = DateTime.Now;
-            if ((now - _lastHoverDetect).TotalMilliseconds >= 40)
+            // 鼠标每动一次都会经过这里，用 TickCount64 而不是 DateTime.Now（后者含时区换算）
+            long now = Environment.TickCount64;
+            if (now - _lastHoverDetect >= 40)
             {
                 _lastHoverDetect = now;
                 Model.SetHover(_hover.Detect(gpt));
