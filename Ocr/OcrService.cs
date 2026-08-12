@@ -24,23 +24,6 @@ public static class OcrService
 
     // ================= 对外入口 =================
 
-    /// <summary>工具条 OCR 按钮：识别整块选区并弹出结果窗口。</summary>
-    public static async void RunAndShow(BitmapSource image)
-    {
-        try
-        {
-            var snapshot = OcrImage.From(image);
-            var result = await Task.Run(() => Recognize(snapshot));
-            new OcrResultWindow(result.ToText()).Show();
-        }
-        catch (Exception ex)
-        {
-            TraceLog.Log($"OCR failed: {ex}");
-            MessageBox.Show($"文字识别失败：{ex.Message}", "WeCapture",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
-        }
-    }
-
     /// <summary>识别整块图像：检测 + 识别，返回带字符位置的完整结果。</summary>
     public static OcrResult Recognize(OcrImage image)
     {

@@ -45,6 +45,31 @@ public static class MosaicImageFactory
         return bmp;
     }
 
+    /// <summary>从任意 BGRA 缓冲生成同尺寸的马赛克图（图片查看窗里的打码用）。</summary>
+    public static BitmapSource CreateFrom(byte[] src, int w, int h)
+    {
+        var dst = new byte[w * h * 4];
+        for (int y = 0; y < h; y++)
+        {
+            int by = (y / BlockSize) * BlockSize;
+            int srcRow = by * w * 4;
+            int dstRow = y * w * 4;
+            for (int x = 0; x < w; x++)
+            {
+                int si = srcRow + (x / BlockSize) * BlockSize * 4;
+                int di = dstRow + x * 4;
+                dst[di] = src[si];
+                dst[di + 1] = src[si + 1];
+                dst[di + 2] = src[si + 2];
+                dst[di + 3] = 255;
+            }
+        }
+
+        var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, dst, w * 4);
+        bmp.Freeze();
+        return bmp;
+    }
+
     /// <summary>把冻结监视器缓冲中 region 区域的像素拷入 dst（BGRA）。</summary>
     internal static void CopyRegion(MonitorSet monitors, RectI region, byte[] dst)
     {

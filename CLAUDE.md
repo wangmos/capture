@@ -75,6 +75,15 @@ Mosaic is special: `MosaicAnnotation` just clips and draws a full-selection pre-
 
 The overlay is shown with `ShowActivated=False`, so when the hotkey arrives from another foreground app Windows suppresses `SetForegroundWindow` and the overlay never gets keyboard focus — Esc and every shortcut would be dead until something is clicked. `OnPreviewLeftDown` calls `EnsureKeyboardFocus` to take it back on first press.
 
+**The image viewer** (`Viewer/ImageViewerWindow`) is shared by both post-capture paths — "识别全部文字" ends the capture and opens it, and long-shot opens it with the stitched result. It zooms (fit-window is the default, plus fit-width / 1:1 / Ctrl+wheel anchored at the cursor), pans by left-dragging when no tool is active, resizes via edge hot-zones that hand off to `WM_SYSCOMMAND`+`SC_SIZE` (a borderless window has no native resize border), and carries the same annotation tools as the capture toolbar.
+
+Two things matter when touching it:
+
+- **`Image.Stretch` must stay `Uniform`.** With `Stretch="None"`, setting `Width`/`Height` only grows the layout slot — the bitmap keeps drawing at its natural size, so zoom silently does nothing.
+- **Annotations are stored in image pixels**, never in view coordinates. `ViewerEditor` receives points already divided by the zoom, and `ViewerAnnotationLayer` re-applies a single `ScaleTransform(zoom)` when drawing, so scroll position and zoom never leak into the model. `Flatten()` burns them into the bitmap at export time.
+
+OCR from the viewer has two scopes: `识别可见区域` crops `VisibleImageRect()` (derived from the scroll offsets and zoom) and `全文识别` runs the whole image; either way the result window docks beside the viewer via `PositionTextWindow` and follows it on move/resize. `ViewerRects` is logged like `ToolbarRects` so UI tests can find the buttons.
+
 **Visual theme** — `Theme/Theme.xaml` is merged in `App.xaml` and holds the whole palette (dark surfaces + the `#1E90FF` accent already used by the selection border), typography and control styles. Settings, the OCR result window and the long-shot preview all draw their own title bar (`WindowStyle=None` + `AllowsTransparency`) because Win10 cannot round a native title bar and a light native bar over dark content looks broken. `AllowsTransparency` costs hardware acceleration, which is fine for these static dialogs but is exactly why the capture overlay should not use it.
 
 **Toolbar** (`Toolbar/ToolbarControl.xaml.cs`) is built in code, not XAML: 7 tool toggles + undo, the 取字 toggle, OCR/pin/save/copy/exit, with a style sub-panel (color/thickness/font size/mosaic radius) rebuilt only when a state key changes. Exactly one overlay window shows it — the one containing the selection's bottom-right corner (`RefreshChrome`); `PlaceToolbar` flips it above the selection when it would fall off-screen.

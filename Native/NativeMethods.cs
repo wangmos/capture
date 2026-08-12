@@ -144,6 +144,16 @@ public static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int X, int Y);
 
+    // ---------- 无边框窗口的边缘缩放 ----------
+    public const int WM_SYSCOMMAND = 0x0112;
+    public const int SC_SIZE = 0xF000;   // 加上方向（WMSZ_LEFT=1 … WMSZ_BOTTOMRIGHT=8）
+
+    [DllImport("user32.dll")]
+    public static extern bool ReleaseCapture();
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
     public static readonly IntPtr HWND_TOPMOST = new(-1);
     public const uint SWP_NOSIZE = 0x0001;
     public const uint SWP_NOMOVE = 0x0002;

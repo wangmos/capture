@@ -229,12 +229,19 @@ public sealed class CaptureSession
         new PinWindow(img).Show();
     }
 
+    /// <summary>
+    /// 识别全部文字：结束截图，把图片交给通用查看窗（与长截图同一个窗），
+    /// 并立即对整图识别，结果窗停靠在旁边。图片仍可继续缩放、标注、保存。
+    /// </summary>
     private void DoOcr()
     {
         if (_model.Selection == null) return;
         var img = RenderSelection();
         ExitAll();
-        Ocr.OcrService.RunAndShow(img);
+
+        var viewer = new Viewer.ImageViewerWindow(img, _settings, "截图");
+        viewer.Show();
+        viewer.RecognizeAll();
     }
 
     // ================= 长截图 =================
@@ -289,9 +296,9 @@ public sealed class CaptureSession
 
         if (outcome is { Success: true, Image: not null })
         {
-            // 长图不能直接钉出来：几千像素高会被整体缩到看不清，用带缩放的预览窗
+            // 长图不能直接钉出来：几千像素高会被整体缩到看不清，用带缩放的查看窗
             ClipboardHelper.SetImage(outcome.Image);
-            new LongShot.LongShotPreviewWindow(outcome.Image, _settings).Show();
+            new Viewer.ImageViewerWindow(outcome.Image, _settings, "长截图").Show();
         }
         else if (outcome is { Success: false })
         {
