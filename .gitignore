@@ -10,3 +10,6 @@ publish/
 
 # 本地覆盖的 Claude Code 设置
 .claude/settings.local.json
+
+# WPF 标记编译产生的临时工程文件
+*_wpftmp.csproj
