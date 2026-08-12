@@ -11,9 +11,10 @@
         PreviewMouseMove="OnPreviewMouseMove"
         PreviewMouseRightButtonDown="OnPreviewRightDown"
         PreviewKeyDown="OnPreviewKeyDown">
-    <!-- AllowsTransparency 保持 False：开启它会把窗口切到 WPF 的分层窗口路径（软件合成），
-         而这是个全屏覆盖层、拖拽时每帧整屏重绘，代价极高。这里也根本不需要窗口透明：
-         冻结截图 BgImage 铺满整屏且不透明，遮罩是画上去的半透明矩形。 -->
+    <!-- AllowsTransparency 保持 False。开启它会把窗口切到 WPF 的分层窗口路径（软件合成），
+         而这是个全屏覆盖层、拖拽时每帧整屏重绘。这里也根本不需要窗口透明：
+         冻结截图 BgImage 铺满整屏且不透明，遮罩是画上去的半透明矩形。
+         实测（3440x1440）：不透明时 Show() 约 101~114ms，改成透明后升到 160ms。 -->
     <Grid>
         <!-- 冻结的屏幕截图（1:1 铺满本屏） -->
         <Image x:Name="BgImage" Stretch="Fill"/>

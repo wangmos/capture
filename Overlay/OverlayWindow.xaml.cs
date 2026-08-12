@@ -107,11 +107,14 @@ public partial class OverlayWindow : Window
         Top = b.Y / s;
         Width = b.W / s;
         Height = b.H / s;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         Show();
+        long showMs = sw.ElapsedMilliseconds;
         CorrectPlacement();
         _hoverTimer.Start();
         _topmostTimer.Start();
-        WeCapture.Core.TraceLog.Log($"OverlayWindow shown mon={b.X},{b.Y},{b.W}x{b.H} s={s} hwnd={Hwnd}");
+        WeCapture.Core.TraceLog.Log(
+            $"OverlayWindow shown mon={b.X},{b.Y},{b.W}x{b.H} s={s} hwnd={Hwnd} showMs={showMs}");
     }
 
     private void CorrectPlacement()
