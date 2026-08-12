@@ -11,6 +11,7 @@ public partial class OcrResultWindow : Window
     public OcrResultWindow(string text, string scope = "")
     {
         InitializeComponent();
+        Icon = Core.IconFactory.WpfIcon;
         SetText(text, scope);
 
         Activated += (_, _) => ResultText.SelectAll();

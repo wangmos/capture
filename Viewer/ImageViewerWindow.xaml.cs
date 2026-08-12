@@ -46,6 +46,8 @@ public partial class ImageViewerWindow : Window
     {
         InitializeComponent();
 
+        Icon = IconFactory.WpfIcon;
+
         _image = image;
         _settings = settings;
         TitleText.Text = title;
@@ -489,7 +491,8 @@ public partial class ImageViewerWindow : Window
         }
         else
         {
-            _textWindow = new OcrResultWindow(text, scope);
+            // 认作图片窗的附属窗：不占任务栏、随主窗最小化/恢复、始终压在主窗之上
+            _textWindow = new OcrResultWindow(text, scope) { Owner = this };
             _textWindow.Closed += (_, _) => _textWindow = null;
             _textWindow.Show();
         }

@@ -10,13 +10,58 @@ public static class IconFactory
 {
     private static Icon? _trayIcon;
     private static Icon? _windowIcon;
+    private static System.Windows.Media.ImageSource? _wpfIcon;
 
     public static Icon TrayIcon => _trayIcon ??= CreateIcon(16);
     public static Icon WindowIcon => _windowIcon ??= CreateIcon(32);
 
+    /// <summary>供 WPF 窗口的 Icon 属性使用（Window.Icon 要的是 ImageSource，不是 GDI Icon）。</summary>
+    public static System.Windows.Media.ImageSource WpfIcon => _wpfIcon ??= CreateWpfIcon(64);
+
+    private static System.Windows.Media.ImageSource CreateWpfIcon(int size)
+    {
+        using var bmp = DrawIcon(size);
+
+        // 逐像素搬运而不是走 HBITMAP：GetHbitmap 会丢掉透明通道，圆角外面会变成黑块。
+        // GDI+ 的 Format32bppArgb 与 WPF 的 Bgra32 都是非预乘 alpha，可直接对应。
+        var data = bmp.LockBits(new Rectangle(0, 0, size, size),
+            System.Drawing.Imaging.ImageLockMode.ReadOnly,
+            System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        try
+        {
+            var src = System.Windows.Media.Imaging.BitmapSource.Create(
+                size, size, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null,
+                data.Scan0, data.Stride * size, data.Stride);
+            src.Freeze();
+            return src;
+        }
+        finally
+        {
+            bmp.UnlockBits(data);
+        }
+    }
+
     private static Icon CreateIcon(int size)
     {
-        using var bmp = new Bitmap(size, size);
+        using var bmp = DrawIcon(size);
+
+        IntPtr hIcon = bmp.GetHicon();
+        try
+        {
+            // 复制为托管 Icon 后立即释放原始句柄
+            using var tmp = Icon.FromHandle(hIcon);
+            return (Icon)tmp.Clone();
+        }
+        finally
+        {
+            DestroyIcon(hIcon);
+        }
+    }
+
+    /// <summary>把图标画进一张位图（托盘图标、窗口图标、WPF 图标共用同一套绘制）。</summary>
+    private static Bitmap DrawIcon(int size)
+    {
+        var bmp = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(bmp))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -61,18 +106,7 @@ public static class IconFactory
                 g.FillEllipse(dot, (size - d) / 2, (size - d) / 2, d, d);
             }
         }
-
-        IntPtr hIcon = bmp.GetHicon();
-        try
-        {
-            // 复制为托管 Icon 后立即释放原始句柄
-            using var tmp = Icon.FromHandle(hIcon);
-            return (Icon)tmp.Clone();
-        }
-        finally
-        {
-            DestroyIcon(hIcon);
-        }
+        return bmp;
     }
 
     private static GraphicsPath RoundedRect(RectangleF bounds, float radius)

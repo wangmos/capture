@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using WeCapture.Core;
 using WeCapture.Hotkey;
 using WeCapture.Tray;
@@ -30,6 +30,7 @@ public partial class SettingsWindow : Window
     private SettingsWindow(AppSettings settings, HotkeyManager hotkeys, TrayHost tray, Action startCapture)
     {
         InitializeComponent();
+        Icon = Core.IconFactory.WpfIcon;
         _settings = settings;
         _hotkeys = hotkeys;
         _tray = tray;
