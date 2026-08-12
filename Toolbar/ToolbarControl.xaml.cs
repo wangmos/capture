@@ -30,6 +30,7 @@ public partial class ToolbarControl : UserControl
     public event Action<Tool>? ToolSelected;
     public event Action? UndoClicked;
     public event Action? OcrClicked;
+    public event Action? LongShotClicked;
     public event Action? PinClicked;
     public event Action? SaveClicked;
     public event Action? CopyClicked;
@@ -100,6 +101,11 @@ public partial class ToolbarControl : UserControl
         _buttons.Add(ocr);
 
         AddSeparator();
+
+        var longShot = MakeButton(ToolIcons.LongShot(),
+            "长截图（应用自动向下滚动并拼接）", () => LongShotClicked?.Invoke());
+        ButtonsRow.Children.Add(longShot);
+        _buttons.Add(longShot);
 
         var pin = MakeButton(ToolIcons.Pin(), "钉住", () => PinClicked?.Invoke());
         ButtonsRow.Children.Add(pin);
@@ -273,7 +279,7 @@ public partial class ToolbarControl : UserControl
 
     private IEnumerable<(string Name, FrameworkElement Button)> NamedButtons()
     {
-        string[] names = { "undo", "ocr", "pin", "save", "copy", "exit" };
+        string[] names = { "undo", "ocr", "longshot", "pin", "save", "copy", "exit" };
         for (int i = 0; i < _buttons.Count && i < names.Length; i++)
             yield return (names[i], _buttons[i]);
     }

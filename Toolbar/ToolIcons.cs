@@ -42,6 +42,10 @@ public static class ToolIcons
 
     public static UIElement Save() => StrokePath("M8,2.5 V10 M4.8,7.2 L8,10.4 L11.2,7.2 M2.5,13 H13.5");
 
+    /// <summary>长截图：两条内容线 + 向下延伸的箭头。</summary>
+    public static UIElement LongShot() =>
+        StrokePath("M3.5,2.8 H12.5 M3.5,5.6 H12.5 M8,7.4 V13.2 M5.6,10.8 L8,13.2 L10.4,10.8");
+
     public static UIElement Copy()
     {
         var g = new Grid { Width = 16, Height = 16 };

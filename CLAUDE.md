@@ -73,7 +73,7 @@ Mosaic is special: `MosaicAnnotation` just clips and draws a full-selection pre-
 
 **OCR** (`Ocr/`) — PP-OCRv6 **small** running on ONNX Runtime; there is no Paddle runtime and no Windows.Media.Ocr fallback any more (both were removed deliberately — see git history if you need them back).
 
-Pipeline: `OcrService.Recognize` → `TextDetector` (DB, input `[1,3,H,W]`, 32-aligned, long side capped at 1536 and short images upscaled) → `DbPostProcessor` (own implementation: flood-fill connected components → convex hull + rotating-caliper min-area rect → `d = area·ratio/perimeter` expansion, replacing PaddleOCR's Clipper offset) → `TextRecognizer` (crop each quad to height 48, width-sorted batches of 8, CTC greedy). Thresholds come from the model's own `inference.yml`: `thresh 0.2` / `box_thresh 0.45` / `unclip_ratio 1.4`.
+Pipeline: `OcrService.Recognize` → `TextDetector` (DB, input `[1,3,H,W]`, 32-aligned, scaled by **total pixels** — capping the long side instead squashes a long screenshot like 645×5671 down to 174×1536 and detects nothing — and short images upscaled) → `DbPostProcessor` (own implementation: flood-fill connected components → convex hull + rotating-caliper min-area rect → `d = area·ratio/perimeter` expansion, replacing PaddleOCR's Clipper offset) → `TextRecognizer` (crop each quad to height 48, width-sorted batches of 8, CTC greedy). Thresholds come from the model's own `inference.yml`: `thresh 0.2` / `box_thresh 0.45` / `unclip_ratio 1.4`.
 
 Two things worth knowing before touching this code:
 
@@ -86,4 +86,10 @@ Two things worth knowing before touching this code:
 
 **Settings** are JSON at `%AppData%\WeCapture\settings.json` (`Core/AppSettings.cs`: hotkey, autostart, last save dir); the global hotkey is registered on an `HWND_MESSAGE` window in `Hotkey/HotkeyManager.cs` and re-registered live from the settings window.
 
-Long-shot / scrolling capture: the original implementation was deleted because stitching drifted whenever the user scrolled quickly. It is being reintroduced **only** in the app-driven form — the app sends the wheel in small steps, waits for frame stability, locates each frame by cross-correlating the overlap band, retries on a low match score, and fails loudly instead of silently mis-stitching. Do not restore the old "follow the user's manual scroll" approach; that is the version that could not be made reliable.
+**Long-shot / scrolling capture** (`LongShot/`) is app-driven, never user-driven — the old "follow the user's manual scroll" version was deleted because fast scrolling leaves consecutive frames with no overlap, which cannot be located and silently mis-stitches. Do not restore it.
+
+`LongShotRunner` hides the overlays (the stitcher needs the *live* screen, not the frozen session capture), then loops: send N wheel notches → `CaptureStableAsync` polls until two consecutive captures are identical → `ScrollStitcher.AddFrame`. It never assumes a pixel step: it divides the measured delta by the notches sent to learn that app's pixels-per-notch (EMA) and re-aims each step at 45% of the viewport. `LowConfidence` rolls the wheel back, halves the step and retries; after 3 retries it fails with a message rather than emitting a wrong image.
+
+`ScrollStitcher` locates each frame in two stages — row signatures (32 luma buckets per row) over candidate offsets, then a score combining absolute cost with peak sharpness so that a blank region, where every offset "matches", scores low. The match band shrinks adaptively with the offset; a fixed band caps the maximum detectable scroll and was the bug that made large steps fail. Rows that stay identical across frames at the top/bottom are treated as fixed header/footer and excluded.
+
+Both halves are covered by probes in the scratchpad `ocrprobe` project: `stitch` replays synthetic scroll frames (asserting pixel-exact reconstruction) and `verify <png>` OCRs a real stitched image and checks line numbers for duplicates plus a linear line-number↔y fit, which is what actually distinguishes "OCR missed a row" from "the stitcher dropped a band".

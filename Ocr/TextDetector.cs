@@ -8,8 +8,15 @@ namespace WeCapture.Ocr;
 /// <summary>文本检测（PP-OCRv6_det_small，DB）：图像 → 文本行四点框。</summary>
 internal static class TextDetector
 {
-    /// <summary>长边上限：超过则等比缩小，控制推理耗时。</summary>
-    private const int MaxSide = 1536;
+    /// <summary>
+    /// 总像素上限：控制推理耗时。
+    /// 不能按"长边"限制——长截图（如 645x5671）按长边缩放会被压成 174x1536，
+    /// 文字小到完全检不出来。按面积缩放则细长图几乎不损失分辨率。
+    /// </summary>
+    private const long MaxPixels = 3_500_000;
+
+    /// <summary>单边硬上限（模型的动态形状上限为 4000）。</summary>
+    private const int MaxDim = 4000;
 
     /// <summary>长边低于此值时放大（截图里的小字放大后检出率明显更高）。</summary>
     private const int UpscaleBelow = 640;
@@ -20,9 +27,17 @@ internal static class TextDetector
     public static List<OcrLine> Detect(OcrImage img, bool swapToRgb)
     {
         int maxSide = Math.Max(img.Width, img.Height);
+        long pixels = (long)img.Width * img.Height;
         double scale = 1.0;
-        if (maxSide > MaxSide) scale = (double)MaxSide / maxSide;
-        else if (maxSide < UpscaleBelow && maxSide > 0) scale = Math.Min(2.0, (double)MaxSide / maxSide);
+
+        if (pixels > MaxPixels)
+            scale = Math.Sqrt((double)MaxPixels / pixels);
+        else if (maxSide < UpscaleBelow && maxSide > 0)
+            scale = Math.Min(2.0, (double)UpscaleBelow * 2 / maxSide);
+
+        // 单边不得越过模型的动态形状上限
+        if (img.Width * scale > MaxDim) scale = (double)MaxDim / img.Width;
+        if (img.Height * scale > MaxDim) scale = (double)MaxDim / img.Height;
 
         int netW = Align32(img.Width * scale);
         int netH = Align32(img.Height * scale);

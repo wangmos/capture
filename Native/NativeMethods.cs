@@ -130,6 +130,20 @@ public static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    // ---------- 输入注入（长截图滚轮） ----------
+    public const uint INPUT_MOUSE = 0;
+    public const uint MOUSEEVENTF_WHEEL = 0x0800;
+    public const int WHEEL_DELTA = 120;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetCursorPos(int X, int Y);
+
     public static readonly IntPtr HWND_TOPMOST = new(-1);
     public const uint SWP_NOSIZE = 0x0001;
     public const uint SWP_NOMOVE = 0x0002;

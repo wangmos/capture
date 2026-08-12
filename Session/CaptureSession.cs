@@ -27,6 +27,7 @@ public sealed class CaptureSession
     private BitmapSource? _mosaicCache;
     private RectI _mosaicCacheSel;
     private bool _closing;
+    private bool _longShotRunning;
 
     public SessionModel Model => _model;
     public MonitorSet Monitors => _monitors;
@@ -89,6 +90,7 @@ public sealed class CaptureSession
         tb.ToolSelected += _model.SetTool;
         tb.UndoClicked += _model.Undo;
         tb.OcrClicked += DoOcr;
+        tb.LongShotClicked += DoLongShot;
         tb.PinClicked += DoPinAndExit;
         tb.SaveClicked += DoSaveAndExit;
         tb.CopyClicked += DoCopyAndExit;
@@ -223,6 +225,69 @@ public sealed class CaptureSession
         var img = RenderSelection();
         ExitAll();
         Ocr.OcrService.RunAndShow(img);
+    }
+
+    // ================= 长截图 =================
+
+    /// <summary>
+    /// 长截图：隐藏覆盖层 → 应用自己驱动滚动并逐帧拼接 → 结果复制到剪贴板并钉出来。
+    /// 覆盖层必须先隐藏，因为拼接看的是滚动中的实时画面，不是会话开始时的冻结截图。
+    /// </summary>
+    private async void DoLongShot()
+    {
+        if (_model.Selection is not RectI sel || sel.IsEmpty) return;
+        if (_longShotRunning) return;
+        _longShotRunning = true;
+
+        var cts = new CancellationTokenSource();
+        var tip = new LongShot.LongShotProgressWindow();
+        tip.Cancelled += cts.Cancel;
+
+        foreach (var w in _windows) w.Hide();
+
+        double scale = _windows.FirstOrDefault(w => w.Monitor.BoundsPx.Contains(sel.Location))?.Monitor.DpiScale
+                       ?? _windows[0].Monitor.DpiScale;
+        tip.Show();
+        tip.PlaceNear(sel, scale);
+
+        LongShot.LongShotOutcome? outcome = null;
+        try
+        {
+            // 让隐藏动作先落到屏幕上，否则第一帧会把覆盖层自己拍进去
+            await Task.Delay(180, cts.Token);
+            var progress = new Progress<string>(tip.Report);
+            outcome = await LongShot.LongShotRunner.RunAsync(sel, progress, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            Core.TraceLog.Log("LongShot cancelled by user");
+        }
+        catch (Exception ex)
+        {
+            Core.TraceLog.Log($"LongShot error: {ex}");
+            MessageBox.Show($"长截图失败：{ex.Message}", "WeCapture",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+        }
+        finally
+        {
+            tip.Close();
+            cts.Dispose();
+            _longShotRunning = false;
+        }
+
+        ExitAll();
+
+        if (outcome is { Success: true, Image: not null })
+        {
+            ClipboardHelper.SetImage(outcome.Image);
+            new PinWindow(outcome.Image).Show();
+        }
+        else if (outcome is { Success: false })
+        {
+            // 明确报错，绝不给出一张静默拼错的图
+            MessageBox.Show(outcome.Message, "长截图未完成",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+        }
     }
 
     // ================= 结束 =================
