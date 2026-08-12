@@ -22,7 +22,7 @@
     <!-- 发布版不带调试符号 -->
     <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Product>WeCapture</Product>
     <Description>微信截图风格工具</Description>
   </PropertyGroup>
