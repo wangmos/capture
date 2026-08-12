@@ -27,32 +27,55 @@ internal sealed class LongShotProgressWindow : Window
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.Manual;
 
+        var res = Application.Current.Resources;
+
         _text = new TextBlock
         {
             Text = "长截图进行中…",
-            Foreground = Brushes.White,
-            FontFamily = new FontFamily("Microsoft YaHei"),
+            Foreground = (Brush)res["TextPrimaryBrush"],
+            FontFamily = (FontFamily)res["UiFont"],
             FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center,
+            MinWidth = 140,
         };
+
+        // 转动的小圆点，表明还在推进（滚动期间覆盖层是隐藏的，用户只能看到这个窗）
+        var spinner = new System.Windows.Shapes.Ellipse
+        {
+            Width = 9, Height = 9,
+            Fill = (Brush)res["AccentBrush"],
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
+        };
+        spinner.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(
+            1.0, 0.25, new Duration(TimeSpan.FromMilliseconds(650)))
+        {
+            AutoReverse = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+        });
 
         var cancel = new Button
         {
-            Content = "取消 (Esc)",
+            Content = "取消",
+            Style = (Style)res["SecondaryButton"],
+            Height = 28,
+            MinWidth = 64,
             Margin = new Thickness(14, 0, 0, 0),
-            Padding = new Thickness(10, 3, 10, 3),
             Cursor = Cursors.Hand,
         };
         cancel.Click += (_, _) => Cancelled?.Invoke();
 
         var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(spinner);
         row.Children.Add(_text);
         row.Children.Add(cancel);
 
         Content = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x20, 0x20, 0x20)),
-            CornerRadius = new CornerRadius(6),
+            Background = (Brush)res["TipBrush"],
+            BorderBrush = (Brush)res["TipBorderBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(14, 10, 12, 10),
             Child = row,
         };

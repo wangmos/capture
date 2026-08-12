@@ -44,18 +44,32 @@ public partial class SettingsWindow : Window
             Dispatcher.BeginInvoke(new Action(LogRects),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
-        // Show() 模式下 IsDefault 不生效：回车 = 确定（热键捕获期除外）
+        // Show() 模式下 IsDefault 不生效：回车 = 保存，Esc = 取消（热键捕获期除外）
         PreviewKeyDown += (_, e) =>
         {
-            if (e.Key == System.Windows.Input.Key.Enter && !HotkeyBox.IsCapturing)
+            if (HotkeyBox.IsCapturing) return;
+
+            if (e.Key == System.Windows.Input.Key.Enter)
             {
                 OnOk(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            else if (e.Key == System.Windows.Input.Key.Escape)
+            {
+                Close();
                 e.Handled = true;
             }
         };
     }
 
     private void OnCancel(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>自绘标题栏：按住拖动窗口。</summary>
+    private void OnTitleBarDrag(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ButtonState == System.Windows.Input.MouseButtonState.Pressed)
+            DragMove();
+    }
 
     private void LogRects()
     {

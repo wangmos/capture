@@ -69,6 +69,14 @@ Mosaic is special: `MosaicAnnotation` just clips and draws a full-selection pre-
 
 **Hover snapping** (`Overlay/HoverDetector.cs`) — `EnumWindows` in Z order for the topmost visible window containing the point, then `RealChildWindowFromPoint` drill-down; UIA `FromPoint` is used only to *refine* (accepted only if contained in the Win32 rect), all exceptions silently degrade. Candidates must be stable 60 ms before committing; a 50 ms dispatcher timer keeps detection advancing while the mouse is still.
 
+**Keyboard shortcuts** live in `SessionModel.OnKey(key, modifiers)`: bare letters switch tools (`SessionModel.ToolForKey` — R/O/A/P/T/M/N and I for 取字), `Ctrl+S/P/E/L` fire save/pin/OCR/long-shot through model events that `CaptureSession` wires to the same handlers as the toolbar buttons, and `Ctrl+Z/C/A` are undo/copy/select-all. Tooltips carry the shortcut so it stays discoverable.
+
+**A Chinese IME eats bare-letter shortcuts.** With an IME active, WPF reports `Key.ImeProcessed` instead of the real key and every single-letter shortcut silently dies. `OverlayWindow` therefore disables the input method on the window (re-enabling it only on the text-annotation `TextEdit` box) *and* recovers the real key via `ImeProcessedKey` in `ResolveKey`. Keep both — the second is the safety net if the first is ever bypassed.
+
+The overlay is shown with `ShowActivated=False`, so when the hotkey arrives from another foreground app Windows suppresses `SetForegroundWindow` and the overlay never gets keyboard focus — Esc and every shortcut would be dead until something is clicked. `OnPreviewLeftDown` calls `EnsureKeyboardFocus` to take it back on first press.
+
+**Visual theme** — `Theme/Theme.xaml` is merged in `App.xaml` and holds the whole palette (dark surfaces + the `#1E90FF` accent already used by the selection border), typography and control styles. Settings, the OCR result window and the long-shot preview all draw their own title bar (`WindowStyle=None` + `AllowsTransparency`) because Win10 cannot round a native title bar and a light native bar over dark content looks broken. `AllowsTransparency` costs hardware acceleration, which is fine for these static dialogs but is exactly why the capture overlay should not use it.
+
 **Toolbar** (`Toolbar/ToolbarControl.xaml.cs`) is built in code, not XAML: 7 tool toggles + undo, the 取字 toggle, OCR/pin/save/copy/exit, with a style sub-panel (color/thickness/font size/mosaic radius) rebuilt only when a state key changes. Exactly one overlay window shows it — the one containing the selection's bottom-right corner (`RefreshChrome`); `PlaceToolbar` flips it above the selection when it would fall off-screen.
 
 **OCR** (`Ocr/`) — PP-OCRv6 **small** running on ONNX Runtime; there is no Paddle runtime and no Windows.Media.Ocr fallback any more (both were removed deliberately — see git history if you need them back).

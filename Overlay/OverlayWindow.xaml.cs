@@ -37,6 +37,11 @@ public partial class OverlayWindow : Window
         BgImage.Source = monitor.Image;
         Layer.Attach(session, monitor);
 
+        // 覆盖层不是文本输入面：关掉输入法，避免中文输入法拦截字母快捷键。
+        // 文字标注框需要输入中文，单独放开。
+        InputMethod.SetIsInputMethodEnabled(this, false);
+        InputMethod.SetIsInputMethodEnabled(TextEdit, true);
+
         Model.Changed += OnModelChanged;
         TextEdit.KeyDown += OnTextEditKeyDown;
         TextEdit.LostFocus += (_, _) => CommitTextIfEditing();
@@ -137,6 +142,14 @@ public partial class OverlayWindow : Window
         Focus();
     }
 
+    /// <summary>确保键盘焦点在本窗口（否则 Esc / 快捷键会被丢给上一个前台程序）。</summary>
+    private void EnsureKeyboardFocus()
+    {
+        if (IsKeyboardFocusWithin) return;
+        Activate();
+        Keyboard.Focus(this);
+    }
+
     // ================= 鼠标路由 =================
 
     private static bool IsChrome(DependencyObject? o)
@@ -157,6 +170,11 @@ public partial class OverlayWindow : Window
             _downClickCount = 0;
             return;
         }
+
+        // 覆盖层是 ShowActivated=False 显示的，热键若来自别的前台程序，系统会抑制
+        // SetForegroundWindow，键盘焦点就不在这里——那样 Esc / 快捷键全部失灵。
+        // 用户一旦在覆盖层上按下鼠标，就把焦点收回来。
+        EnsureKeyboardFocus();
 
         // WPF 的 ButtonUp 事件 ClickCount 恒为 1，双击判定需借用 Down 的计数
         _downClickCount = e.ClickCount;
@@ -284,9 +302,20 @@ public partial class OverlayWindow : Window
         if (TextEdit.Visibility == Visibility.Visible && TextEdit.IsKeyboardFocusWithin)
             return;
 
-        if (Model.OnKey(e.Key, Keyboard.Modifiers))
+        if (Model.OnKey(ResolveKey(e), Keyboard.Modifiers))
             e.Handled = true;
     }
+
+    /// <summary>
+    /// 还原真实按键。中文输入法开启时字母键会被 IME 吃掉，WPF 只报 Key.ImeProcessed，
+    /// 单字母快捷键就会全部失效——必须从 ImeProcessedKey 取回原始键。
+    /// </summary>
+    private static Key ResolveKey(KeyEventArgs e) => e.Key switch
+    {
+        Key.ImeProcessed => e.ImeProcessedKey,
+        Key.System => e.SystemKey,
+        _ => e.Key,
+    };
 
     // ================= 文字编辑 =================
 

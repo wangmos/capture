@@ -61,6 +61,12 @@ public sealed class CaptureSession
         _model.TextLayerRequested += OnTextLayerRequested;
         _model.TextCopyRequested += OnTextCopyRequested;
 
+        // 快捷键与工具条按钮走同一套动作
+        _model.SaveRequested += DoSaveAndExit;
+        _model.PinRequested += DoPinAndExit;
+        _model.OcrRequested += DoOcr;
+        _model.LongShotRequested += DoLongShot;
+
         CreateWindows();
 
         // 覆盖层已显示，此时在后台加载 OCR 模型：用户真去点识别时就不必等秒级的首次加载
@@ -279,8 +285,9 @@ public sealed class CaptureSession
 
         if (outcome is { Success: true, Image: not null })
         {
+            // 长图不能直接钉出来：几千像素高会被整体缩到看不清，用带缩放的预览窗
             ClipboardHelper.SetImage(outcome.Image);
-            new PinWindow(outcome.Image).Show();
+            new LongShot.LongShotPreviewWindow(outcome.Image, _settings).Show();
         }
         else if (outcome is { Success: false })
         {

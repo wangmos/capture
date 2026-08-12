@@ -1,0 +1,70 @@
+﻿<Window x:Class="WeCapture.LongShot.LongShotPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="长截图 - WeCapture" Height="760" Width="720"
+        WindowStartupLocation="CenterScreen" ShowInTaskbar="True"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="CanResize" FontFamily="{StaticResource UiFont}">
+
+    <Border Style="{StaticResource ShellBorder}" Margin="14">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 标题栏 -->
+            <Grid Height="44" MouseLeftButtonDown="OnTitleBarDrag">
+                <StackPanel Orientation="Horizontal" Margin="18,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="长截图" Style="{StaticResource WindowTitle}"/>
+                    <TextBlock x:Name="SizeText" Style="{StaticResource HintText}"
+                               Margin="10,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Button Style="{StaticResource CloseButton}" Click="OnClose"
+                        HorizontalAlignment="Right" Margin="0,0,8,0" ToolTip="关闭 (Esc)"/>
+            </Grid>
+
+            <Border Grid.Row="1" Height="1" Background="{StaticResource BorderSubtleBrush}"/>
+
+            <!-- 图像视口：Ctrl+滚轮缩放，滚轮滚动 -->
+            <Border Grid.Row="2" Background="#FF101012" Margin="14,14,14,0" CornerRadius="8"
+                    BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
+                    ClipToBounds="True">
+                <ScrollViewer x:Name="Scroller"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto"
+                              PreviewMouseWheel="OnWheel"
+                              Background="Transparent">
+                    <Image x:Name="Img" Stretch="None" HorizontalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           SnapsToDevicePixels="True"/>
+                </ScrollViewer>
+            </Border>
+
+            <!-- 底部操作 -->
+            <Grid Grid.Row="3" Margin="14,12,14,14">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="－" Style="{StaticResource SecondaryButton}" MinWidth="38"
+                            Click="OnZoomOut" ToolTip="缩小 (Ctrl+-)"/>
+                    <TextBlock x:Name="ZoomText" Style="{StaticResource HintText}" Width="56"
+                               TextAlignment="Center" VerticalAlignment="Center" Margin="6,0"/>
+                    <Button Content="＋" Style="{StaticResource SecondaryButton}" MinWidth="38"
+                            Click="OnZoomIn" ToolTip="放大 (Ctrl++)"/>
+                    <Button Content="适应宽度" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
+                            Click="OnFitWidth" ToolTip="适应宽度 (0)"/>
+                    <Button Content="1:1" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                            Click="OnActualSize" ToolTip="原始尺寸 (1)"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="复制" Style="{StaticResource SecondaryButton}"
+                            Click="OnCopy" ToolTip="复制到剪贴板 (Ctrl+C)"/>
+                    <Button Content="保存" Style="{StaticResource PrimaryButton}" Margin="10,0,0,0"
+                            Click="OnSave" ToolTip="保存为图片 (Ctrl+S)"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

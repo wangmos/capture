@@ -80,6 +80,12 @@ public sealed class SessionModel
     /// <summary>请求把选中的文字复制到剪贴板（随后结束会话）。</summary>
     public event Action<string>? TextCopyRequested;
 
+    /// <summary>快捷键触发的动作（与工具条同名按钮等价）。</summary>
+    public event Action? SaveRequested;
+    public event Action? PinRequested;
+    public event Action? OcrRequested;
+    public event Action? LongShotRequested;
+
     public SessionModel(RectI virtualBounds)
     {
         VirtualBounds = virtualBounds;
@@ -583,11 +589,55 @@ public sealed class SessionModel
                         return true;
                     }
                     return false;
+
+                case System.Windows.Input.Key.S:
+                    return Raise(SaveRequested);
+
+                case System.Windows.Input.Key.P:
+                    return Raise(PinRequested);
+
+                case System.Windows.Input.Key.E:
+                    return Raise(OcrRequested);
+
+                case System.Windows.Input.Key.L:
+                    return Raise(LongShotRequested);
             }
+
+            return false;
+        }
+
+        // 无修饰键的单字母 = 切换标注工具（文字编辑期间窗口已提前拦截，不会走到这里）
+        if (mods == System.Windows.Input.ModifierKeys.None &&
+            State == UIState.Selected && ToolForKey(key) is Tool tool)
+        {
+            SetTool(tool);
+            return true;
         }
 
         return OnKey(key);
     }
+
+    /// <summary>动作类快捷键：仅在已有选区时有效。</summary>
+    private bool Raise(Action? action)
+    {
+        if (State != UIState.Selected || Selection == null || action == null) return false;
+        action.Invoke();
+        return true;
+    }
+
+    /// <summary>工具快捷键表（单字母，取英文首字母便于记忆）。</summary>
+    public static Tool? ToolForKey(System.Windows.Input.Key key) => key switch
+    {
+        System.Windows.Input.Key.R => Tool.Rectangle,
+        System.Windows.Input.Key.O => Tool.Ellipse,
+        System.Windows.Input.Key.A => Tool.Arrow,
+        System.Windows.Input.Key.P => Tool.Pen,
+        System.Windows.Input.Key.T => Tool.Text,
+        System.Windows.Input.Key.M => Tool.Mosaic,
+        System.Windows.Input.Key.N => Tool.Number,
+        System.Windows.Input.Key.I => Tool.TextSelect,
+        _ => null,
+    };
 
     /// <returns>是否已处理。</returns>
     public bool OnKey(System.Windows.Input.Key key)

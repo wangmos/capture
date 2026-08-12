@@ -1,30 +1,49 @@
-<Window x:Class="WeCapture.Ocr.OcrResultWindow"
+﻿<Window x:Class="WeCapture.Ocr.OcrResultWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="识别结果 - WeCapture" Height="480" Width="560"
-        WindowStartupLocation="CenterScreen" Background="#FF252526"
-        ShowInTaskbar="True" Topmost="True">
-    <Grid Margin="12">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+        Title="识别结果 - WeCapture" Height="520" Width="580"
+        WindowStartupLocation="CenterScreen" Topmost="True" ShowInTaskbar="True"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="CanResize" FontFamily="{StaticResource UiFont}">
 
-        <TextBox x:Name="ResultText" Grid.Row="0"
-                 IsReadOnly="True" TextWrapping="Wrap"
-                 VerticalScrollBarVisibility="Auto"
-                 Background="#FF1E1E1E" Foreground="#FFE8E8E8"
-                 BorderBrush="#FF3F3F46" BorderThickness="1"
-                 FontSize="14" FontFamily="Microsoft YaHei"
-                 Padding="8"/>
+    <Window.Resources>
+        <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimScrollBar}"/>
+    </Window.Resources>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button x:Name="CopyButton" Content="复制全部" Width="90" Height="30" Margin="0,0,10,0"
-                    Click="OnCopy" Cursor="Hand"
-                    Background="#FF0078D4" Foreground="White" BorderThickness="0"/>
-            <Button Content="关闭" Width="80" Height="30"
-                    Click="OnClose" Cursor="Hand"
-                    Background="#FF3F3F46" Foreground="White" BorderThickness="0"/>
-        </StackPanel>
-    </Grid>
+    <Border Style="{StaticResource ShellBorder}" Margin="14">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 标题栏 -->
+            <Grid Height="44" MouseLeftButtonDown="OnTitleBarDrag">
+                <StackPanel Orientation="Horizontal" Margin="18,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="识别结果" Style="{StaticResource WindowTitle}"/>
+                    <TextBlock x:Name="StatsText" Style="{StaticResource HintText}"
+                               Margin="10,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Button Style="{StaticResource CloseButton}" Click="OnClose"
+                        HorizontalAlignment="Right" Margin="0,0,8,0" ToolTip="关闭 (Esc)"/>
+            </Grid>
+
+            <Border Grid.Row="1" Height="1" Background="{StaticResource BorderSubtleBrush}"/>
+
+            <!-- 正文 -->
+            <Border Grid.Row="2" Background="{StaticResource InputBrush}" Margin="14,14,14,0"
+                    CornerRadius="8" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
+                <TextBox x:Name="ResultText" Style="{StaticResource ReaderTextBox}"/>
+            </Border>
+
+            <!-- 底部操作 -->
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="14,14,14,14">
+                <Button Content="关闭" Style="{StaticResource SecondaryButton}" Click="OnClose"/>
+                <Button x:Name="CopyButton" Content="复制全部" Style="{StaticResource PrimaryButton}"
+                        Margin="10,0,0,0" Click="OnCopy"/>
+            </StackPanel>
+        </Grid>
+    </Border>
 </Window>

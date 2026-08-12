@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
@@ -56,13 +56,13 @@ public partial class ToolbarControl : UserControl
     {
         var tools = new (Tool Tool, string Tip, Func<UIElement> Icon)[]
         {
-            (Tool.Rectangle, "矩形", () => ToolIcons.Create(Tool.Rectangle)),
-            (Tool.Ellipse, "椭圆", () => ToolIcons.Create(Tool.Ellipse)),
-            (Tool.Arrow, "箭头", () => ToolIcons.Create(Tool.Arrow)),
-            (Tool.Pen, "画笔", () => ToolIcons.Create(Tool.Pen)),
-            (Tool.Text, "文字", () => ToolIcons.TextGlyph("A", 14)),
-            (Tool.Mosaic, "马赛克", () => ToolIcons.Create(Tool.Mosaic)),
-            (Tool.Number, "标号（序号从 1 递增，区域外点击自动扩展选区）", () => ToolIcons.Number()),
+            (Tool.Rectangle, "矩形 (R)", () => ToolIcons.Create(Tool.Rectangle)),
+            (Tool.Ellipse, "椭圆 (O)", () => ToolIcons.Create(Tool.Ellipse)),
+            (Tool.Arrow, "箭头 (A)", () => ToolIcons.Create(Tool.Arrow)),
+            (Tool.Pen, "画笔 (P)", () => ToolIcons.Create(Tool.Pen)),
+            (Tool.Text, "文字 (T)", () => ToolIcons.TextGlyph("A", 14)),
+            (Tool.Mosaic, "马赛克 (M)", () => ToolIcons.Create(Tool.Mosaic)),
+            (Tool.Number, "标号 (N)　序号从 1 递增，区域外点击自动扩展选区", () => ToolIcons.Number()),
         };
 
         foreach (var (tool, tip, icon) in tools)
@@ -81,7 +81,7 @@ public partial class ToolbarControl : UserControl
         AddSeparator();
 
         _buttons.Clear();
-        var undo = MakeButton(ToolIcons.Undo(), "撤销", () => UndoClicked?.Invoke());
+        var undo = MakeButton(ToolIcons.Undo(), "撤销 (Ctrl+Z)", () => UndoClicked?.Invoke());
         ButtonsRow.Children.Add(undo);
         _buttons.Add(undo);
 
@@ -90,38 +90,38 @@ public partial class ToolbarControl : UserControl
         {
             Style = (Style)FindResource("TbToggle"),
             Content = ToolIcons.TextSelect(),
-            ToolTip = "取字（在图上直接拖选文字，Ctrl+C 复制）",
+            ToolTip = "取字 (I)　在图上直接拖选文字，Ctrl+C 复制",
         };
         textSelect.Click += (_, _) => ToolSelected?.Invoke(Tool.TextSelect);
         _toolButtons[Tool.TextSelect] = textSelect;
         ButtonsRow.Children.Add(textSelect);
 
-        var ocr = MakeButton(ToolIcons.Ocr(), "识别图片中的文字", () => OcrClicked?.Invoke());
+        var ocr = MakeButton(ToolIcons.Ocr(), "识别全部文字 (Ctrl+E)", () => OcrClicked?.Invoke());
         ButtonsRow.Children.Add(ocr);
         _buttons.Add(ocr);
 
         AddSeparator();
 
         var longShot = MakeButton(ToolIcons.LongShot(),
-            "长截图（应用自动向下滚动并拼接）", () => LongShotClicked?.Invoke());
+            "长截图 (Ctrl+L)　应用自动向下滚动并拼接", () => LongShotClicked?.Invoke());
         ButtonsRow.Children.Add(longShot);
         _buttons.Add(longShot);
 
-        var pin = MakeButton(ToolIcons.Pin(), "钉住", () => PinClicked?.Invoke());
+        var pin = MakeButton(ToolIcons.Pin(), "钉住 (Ctrl+P)", () => PinClicked?.Invoke());
         ButtonsRow.Children.Add(pin);
         _buttons.Add(pin);
 
-        var save = MakeButton(ToolIcons.Save(), "保存", () => SaveClicked?.Invoke());
+        var save = MakeButton(ToolIcons.Save(), "保存 (Ctrl+S)", () => SaveClicked?.Invoke());
         ButtonsRow.Children.Add(save);
         _buttons.Add(save);
 
-        var copy = MakeButton(ToolIcons.Copy(), "复制", () => CopyClicked?.Invoke());
+        var copy = MakeButton(ToolIcons.Copy(), "复制 (Ctrl+C)", () => CopyClicked?.Invoke());
         ButtonsRow.Children.Add(copy);
         _buttons.Add(copy);
 
         AddSeparator();
 
-        var exit = MakeButton(ToolIcons.Exit(), "退出截图", () => ExitClicked?.Invoke());
+        var exit = MakeButton(ToolIcons.Exit(), "退出截图 (Esc)", () => ExitClicked?.Invoke());
         ButtonsRow.Children.Add(exit);
         _buttons.Add(exit);
     }
