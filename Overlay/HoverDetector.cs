@@ -96,6 +96,7 @@ public sealed class HoverDetector
         {
             if (_excludeHwnds.Contains(hwnd)) return true;
             if (!NativeMethods.IsWindowVisible(hwnd)) return true;
+            if (NativeMethods.IsCloaked(hwnd)) return true;   // 挂起的 UWP 等：视觉上不存在
             if (!NativeMethods.GetWindowRect(hwnd, out RECT r)) return true;
             if (r.Width <= 0 || r.Height <= 0) return true;
             var rect = RectI.FromLTRB(r.Left, r.Top, r.Right, r.Bottom);

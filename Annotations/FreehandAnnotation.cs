@@ -24,11 +24,21 @@ public class FreehandAnnotation : Annotation
         }
     }
 
+    private StreamGeometry? _cached;
+    private int _cachedCount = -1;
+
     public override void Render(DrawingContext dc, in RenderEnv env)
     {
-        var geo = BuildGeometry(Points, ThicknessPx);
-        if (geo != null)
-            dc.DrawGeometry(null, PenOf(Color, ThicknessPx), geo);
+        // 已提交的笔迹点集不再变化，几何缓存下来即可；拖拽中的预览笔迹点数一直在增长，
+        // 用点数当版本号，增长时自然重建。否则每帧都要按全部点重建一次几何。
+        if (_cached == null || _cachedCount != Points.Count)
+        {
+            _cached = BuildGeometry(Points, ThicknessPx);
+            _cachedCount = Points.Count;
+        }
+
+        if (_cached != null)
+            dc.DrawGeometry(null, PenOf(Color, ThicknessPx), _cached);
     }
 
     /// <summary>圆头折线几何（全局 px 坐标）。</summary>

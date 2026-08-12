@@ -111,6 +111,25 @@ public static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(IntPtr hWnd);
 
+    // 被 DWM 隐藏（cloaked）的窗口——挂起的 UWP 应用最典型——IsWindowVisible 仍返回 true，
+    // 且往往带着一个很大的矩形，不过滤就会在桌面上悬停出莫名其妙的高亮框。
+    public const int DWMWA_CLOAKED = 14;
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attr, out int value, int size);
+
+    public static bool IsCloaked(IntPtr hWnd)
+    {
+        try
+        {
+            return DwmGetWindowAttribute(hWnd, DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0 && cloaked != 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     [DllImport("user32.dll")]
     public static extern int GetWindowLongPtr(IntPtr hWnd, int nIndex);
 

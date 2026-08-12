@@ -83,13 +83,7 @@ public sealed class MonitorSet : IEnumerable<MonitorShot>
                 hBmp, IntPtr.Zero, System.Windows.Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
             image.Freeze();
 
-            // BGRA 缓冲（取色 O(1)）
-            var conv = new FormatConvertedBitmap(image, System.Windows.Media.PixelFormats.Bgra32, null, 0);
-            int stride = w * 4;
-            var buf = new byte[stride * h];
-            conv.CopyPixels(buf, stride, 0);
-
-            return new MonitorShot
+            var shot = new MonitorShot
             {
                 Handle = hMon,
                 DeviceName = mi.szDevice,
@@ -98,8 +92,9 @@ public sealed class MonitorSet : IEnumerable<MonitorShot>
                 IsPrimary = primary,
                 DpiScale = dpiX / 96.0,
                 Image = image,
-                Bgra = buf,
             };
+            shot.InitBuffer();
+            return shot;
         }
         finally
         {

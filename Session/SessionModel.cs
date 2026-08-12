@@ -595,7 +595,9 @@ public sealed class SessionModel
                 return true;
 
             case ShortcutAction.Copy:
-                if (ActiveTool == Tool.TextSelect && TextLayer is { IsEmpty: false })
+                // 只有真的选中了文字才复制文字。取字是默认开启的，若"有文字层"就复制全文，
+                // 用户框完选区顺手按 Ctrl+C 拿到的会是一堆文字而不是截图。
+                if (ActiveTool == Tool.TextSelect && HasTextSelection)
                 {
                     CopyTextSelection();
                     return true;

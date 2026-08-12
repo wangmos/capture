@@ -37,12 +37,50 @@ public sealed class AnnotationLayer : FrameworkElement
             _model.Changed -= OnModelChanged;
     }
 
+    private object? _lastSignature;
+
     private void OnModelChanged()
     {
-        if (Dispatcher.CheckAccess())
-            InvalidateVisual();
-        else
-            Dispatcher.BeginInvoke(InvalidateVisual);
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(OnModelChanged);
+            return;
+        }
+
+        // 多屏时所有覆盖层共享一个模型，任何变化都会通知到每一块屏。
+        // 本屏画面没变就别重绘——例如在主屏拖选区，副屏其实一直是同一张全屏遮罩。
+        var sig = BuildSignature();
+        if (sig != null && sig.Equals(_lastSignature)) return;
+        _lastSignature = sig;
+
+        InvalidateVisual();
+    }
+
+    /// <summary>本屏渲染所依赖的全部状态。任一项变化才需要重绘。</summary>
+    private object? BuildSignature()
+    {
+        var m = _model;
+        var mon = _monitor;
+        if (m == null || mon == null) return null;
+
+        var vb = mon.BoundsPx;
+        RectI? cutout = m.State switch
+        {
+            UIState.Idle => m.HoverRect,
+            _ => m.Selection,
+        };
+
+        // 画笔拖拽中，预览笔迹随鼠标变化，必须把鼠标位置计进来
+        var drawingAt = m.DragMode == DragMode.Draw ? LastMouseGlobal : default;
+
+        return (m.State, m.DragMode, m.ActiveTool,
+                Clip(cutout, vb), Clip(m.Selection, vb),
+                m.Annotations.Count, drawingAt,
+                m.TextLayer, m.TextLayerLoading,
+                m.TextSelectionStart, m.TextSelectionEnd);
+
+        static RectI? Clip(RectI? r, RectI vb) =>
+            r is RectI v && v.IntersectsWith(vb) ? v : null;
     }
 
     protected override void OnRender(DrawingContext dc)

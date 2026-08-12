@@ -76,6 +76,21 @@ public sealed class CaptureSession
         // 覆盖层已显示，此时在后台加载 OCR 模型：用户真去点识别时就不必等秒级的首次加载
         Ocr.OcrService.Warmup();
 
+        // 同理，整屏 BGRA 缓冲（取色/马赛克用）也挪到覆盖层出现之后再在后台备好，
+        // 不占用热键到画面冻结之间的时间
+        var monitors = _monitors;
+        Task.Run(() =>
+        {
+            try
+            {
+                foreach (var m in monitors) _ = m.Bgra;
+            }
+            catch (Exception ex)
+            {
+                Core.TraceLog.Log($"BGRA prefetch failed: {ex.Message}");
+            }
+        });
+
         Core.TraceLog.Log($"CaptureSession ctor done, windows={_windows.Count}");
     }
 

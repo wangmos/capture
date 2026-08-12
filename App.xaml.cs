@@ -18,8 +18,15 @@ public partial class App : Application
         base.OnStartup(e);
         Core.TraceLog.Log($"OnStartup args=[{string.Join(",", e.Args)}]");
 
+        // 常驻托盘程序不该被一次偶发异常整个带走：记下来、告诉用户、继续活着。
+        // （真正致命的问题会在下一次操作再次暴露，而不是让用户连托盘图标一起丢。）
         DispatcherUnhandledException += (_, ae) =>
+        {
             Core.TraceLog.Log($"DispatcherUnhandledException: {ae.Exception}");
+            ae.Handled = true;
+            MessageBox.Show($"出现意外错误，操作已取消：\n{ae.Exception.Message}", "WeCapture",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        };
         AppDomain.CurrentDomain.UnhandledException += (_, ae) =>
             Core.TraceLog.Log($"UnhandledException: {ae.ExceptionObject}");
 
