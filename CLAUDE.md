@@ -47,7 +47,7 @@ Gotchas learned the hard way on this machine:
 
 - Scripts must be **pure ASCII** — PowerShell 5.1 reads `.ps1` as ANSI; emit Chinese via `[char]` codes.
 - Never call UIAutomation `FindAll` in a loop here; it hangs for minutes crawling unresponsive desktop windows. Use fixed coordinates + log polling. (`GetCursorInfo` + `LoadCursor` handle comparison *is* safe and is how cursor-shape assertions are done.)
-- The toolbar is **right-anchored and content-sized**: adding/removing a button moves every button to its *left*. Recalibrate coordinates after touching `ToolbarControl.BuildButtons`. A blind misclick outside the toolbar now expands the selection, so probe for the hand cursor before clicking.
+- The toolbar is **right-anchored and content-sized**: adding/removing a button moves every button to its *left*. Do not hardcode button coordinates — `ToolbarControl.LogButtonRects` writes a `ToolbarRects Rectangle=x,y … TextSelect=x,y undo=x,y ocr=x,y …` line (physical px, deduplicated, re-emitted whenever the layout moves) and the scripts parse it. `test_number.ps1` / `test_textselect.ps1` show the pattern with a `BtnXY` helper. A blind misclick outside the toolbar expands the selection, so never guess.
 - A human may be using this machine concurrently — drag endpoints jitter ±1px; allow ±2 on size assertions and retry on log lines rather than assuming a single attempt lands.
 
 ## Architecture
@@ -69,7 +69,7 @@ Mosaic is special: `MosaicAnnotation` just clips and draws a full-selection pre-
 
 **Hover snapping** (`Overlay/HoverDetector.cs`) — `EnumWindows` in Z order for the topmost visible window containing the point, then `RealChildWindowFromPoint` drill-down; UIA `FromPoint` is used only to *refine* (accepted only if contained in the Win32 rect), all exceptions silently degrade. Candidates must be stable 60 ms before committing; a 50 ms dispatcher timer keeps detection advancing while the mouse is still.
 
-**Toolbar** (`Toolbar/ToolbarControl.xaml.cs`) is built in code, not XAML: 7 tool toggles + undo/OCR/pin/save/copy/exit, with a style sub-panel (color/thickness/font size/mosaic radius) rebuilt only when a state key changes. Exactly one overlay window shows it — the one containing the selection's bottom-right corner (`RefreshChrome`); `PlaceToolbar` flips it above the selection when it would fall off-screen.
+**Toolbar** (`Toolbar/ToolbarControl.xaml.cs`) is built in code, not XAML: 7 tool toggles + undo, the 取字 toggle, OCR/pin/save/copy/exit, with a style sub-panel (color/thickness/font size/mosaic radius) rebuilt only when a state key changes. Exactly one overlay window shows it — the one containing the selection's bottom-right corner (`RefreshChrome`); `PlaceToolbar` flips it above the selection when it would fall off-screen.
 
 **OCR** (`Ocr/`) — PP-OCRv6 **small** running on ONNX Runtime; there is no Paddle runtime and no Windows.Media.Ocr fallback any more (both were removed deliberately — see git history if you need them back).
 
@@ -79,6 +79,8 @@ Two things worth knowing before touching this code:
 
 - **The charset comes from the rec model's `character` metadata**, not the `.txt` (which is only a fallback). 18708 dict entries → 18710 output classes = `blank` + dict + `space`; index 0 is CTC blank and the last index is a space. A mismatch here decodes to garbage, so never hardcode the count.
 - **`OcrLine.Chars` carries per-character x-ranges**, reverse-derived from CTC timesteps (timestep ↔ input width is linear). That is what makes on-image text selection possible; keep it populated when changing the decoder.
+
+**On-image text selection** (`Tool.TextSelect`, the I-beam toggle between undo and OCR) is the WeChat-style path: entering the mode runs one OCR on the *un-annotated* selection in the background (`CaptureSession.OnTextLayerRequested`), then `Ocr/TextLayer.cs` flattens the result into a single sequence of selectable characters in global px. That flattening is the design pivot — a cross-line selection becomes one `[a, b)` range, so hit-testing, word/line expansion, highlight rectangles and copy all fall out of it. While the mode is active **the selection is frozen** (`OnLeftDown` returns before the hit-tester runs), which is what removes the ambiguity between "drag to move the selection" and "drag to select text"; leave the mode to resize again. Double-click = word, triple-click = line, Ctrl+A = all, Ctrl+C / the copy button = copy text and end the session. The layer is rebuilt if the selection changed since it was built (`_textLayerSource`).
 
 `OcrService.RecognizeFixedRegion` is the rec-only path (no detection) and single-line-looking selections (`h ≤ 64 && w ≥ 4h`) take it automatically. Dark captures (avg luma < 110) are inverted first. Models live in `Models/` and are copied to the output; `OcrService.Warmup()` fires when a capture session starts so the first recognition doesn't pay model load.
 

@@ -277,7 +277,7 @@ public partial class OverlayWindow : Window
         if (TextEdit.Visibility == Visibility.Visible && TextEdit.IsKeyboardFocusWithin)
             return;
 
-        if (Model.OnKey(e.Key))
+        if (Model.OnKey(e.Key, Keyboard.Modifiers))
             e.Handled = true;
     }
 
@@ -376,6 +376,9 @@ public partial class OverlayWindow : Window
                 Toolbar.Visibility = Visibility.Visible;
                 Toolbar.UpdateLayout();
                 PlaceToolbar(sel, Toolbar.ActualWidth, Toolbar.ActualHeight);
+                // 布局落定后再记按钮坐标（内部去重，只在变化时写日志）
+                Dispatcher.BeginInvoke(new System.Action(Toolbar.LogButtonRects),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
                 return;
             }
         }

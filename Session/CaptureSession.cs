@@ -57,6 +57,8 @@ public sealed class CaptureSession
         _model.CopyConfirmed += DoCopyAndExit;
         _model.ExitRequested += ExitAll;
         _model.TextEditRequested += OnTextEditRequested;
+        _model.TextLayerRequested += OnTextLayerRequested;
+        _model.TextCopyRequested += OnTextCopyRequested;
 
         CreateWindows();
 
@@ -103,6 +105,57 @@ public sealed class CaptureSession
         win.ShowTextEdit(pos);
     }
 
+    // ================= 图上选字 =================
+
+    /// <summary>进入取字模式：对选区原图（不含标注）跑一次 OCR，完成后装入模型。</summary>
+    private void OnTextLayerRequested()
+    {
+        if (_model.Selection is not RectI sel || sel.IsEmpty) return;
+
+        // RenderTargetBitmap / BitmapSource 有线程亲和性，像素必须在 UI 线程取出
+        var raw = ImageExporter.Render(_monitors, sel, Array.Empty<Annotation>(), null);
+        var snapshot = Ocr.OcrImage.From(raw);
+        var origin = sel.Location;
+        var dispatcher = System.Windows.Application.Current.Dispatcher;
+
+        Task.Run(() =>
+        {
+            try
+            {
+                var result = Ocr.OcrService.Recognize(snapshot);
+                var layer = Ocr.TextLayer.Build(result, origin);
+                dispatcher.BeginInvoke(() =>
+                {
+                    if (!_closing) _model.SetTextLayer(layer, sel);
+                });
+            }
+            catch (Exception ex)
+            {
+                Core.TraceLog.Log($"TextLayer build failed: {ex}");
+                dispatcher.BeginInvoke(() =>
+                {
+                    if (!_closing) _model.SetTextLayerFailed();
+                });
+            }
+        });
+    }
+
+    /// <summary>复制选中的文字并结束会话。</summary>
+    private void OnTextCopyRequested(string text)
+    {
+        ExitAll();
+        try
+        {
+            System.Windows.Clipboard.SetText(text);
+        }
+        catch (Exception ex)
+        {
+            Core.TraceLog.Log($"Clipboard.SetText failed: {ex.Message}");
+            MessageBox.Show("复制到剪贴板失败（剪贴板可能被其他程序占用）", "WeCapture",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+        }
+    }
+
     // ================= 导出 =================
 
     /// <summary>按当前选区 + 标注渲染最终图（物理像素）。</summary>
@@ -133,6 +186,13 @@ public sealed class CaptureSession
 
     private void DoCopyAndExit()
     {
+        // 取字模式下选中了文字：复制按钮/双击复制的是文字而不是图片
+        if (_model.ActiveTool == Tool.TextSelect && _model.HasTextSelection)
+        {
+            _model.CopyTextSelection();
+            return;
+        }
+
         if (_model.Selection == null) return;
         var img = RenderSelection();
         ExitAll();

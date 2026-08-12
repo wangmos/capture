@@ -31,6 +31,21 @@ public sealed class SessionModel
     public List<Annotation> Annotations { get; } = new();
     public bool CanUndo => Annotations.Count > 0;
 
+    // ---------- 图上选字 ----------
+    /// <summary>当前选区的文字层；为 null 表示尚未识别。</summary>
+    public Ocr.TextLayer? TextLayer { get; private set; }
+
+    /// <summary>正在后台识别。</summary>
+    public bool TextLayerLoading { get; private set; }
+
+    private RectI? _textLayerSource;   // 文字层对应的选区，选区变了要重新识别
+    private int _textAnchor;
+    private int _textCaret;
+
+    public int TextSelectionStart => Math.Min(_textAnchor, _textCaret);
+    public int TextSelectionEnd => Math.Max(_textAnchor, _textCaret);
+    public bool HasTextSelection => TextLayer != null && _textAnchor != _textCaret;
+
     // ---------- 拖拽内部状态 ----------
     private PointI _anchor;
     private RectI _moveOrigin;
@@ -56,6 +71,12 @@ public sealed class SessionModel
     /// <summary>请求打开文字编辑框（全局坐标）。</summary>
     public event Action<PointI>? TextEditRequested;
 
+    /// <summary>请求对当前选区做一次 OCR，用于图上选字。</summary>
+    public event Action? TextLayerRequested;
+
+    /// <summary>请求把选中的文字复制到剪贴板（随后结束会话）。</summary>
+    public event Action<string>? TextCopyRequested;
+
     public SessionModel(RectI virtualBounds)
     {
         VirtualBounds = virtualBounds;
@@ -79,10 +100,19 @@ public sealed class SessionModel
         _anchor = gpt;
 
         // 双击选区内部 → 复制退出（Down 的 ClickCount 可靠；任意标注工具下都生效）
-        if (clickCount >= 2 && State == UIState.Selected &&
+        // 取字模式除外：那里的双击/三击是取词、取行
+        if (clickCount >= 2 && State == UIState.Selected && ActiveTool != Tool.TextSelect &&
             Selection is RectI dcs && dcs.Contains(gpt))
         {
             CopyConfirmed?.Invoke();
+            return;
+        }
+
+        // 取字模式：选区被冻结，所有按下都用于选文字
+        if (State == UIState.Selected && ActiveTool == Tool.TextSelect)
+        {
+            BeginTextSelection(gpt, clickCount);
+            RaiseChanged();
             return;
         }
 
@@ -143,6 +173,70 @@ public sealed class SessionModel
             case UIState.Selecting:
                 break;
         }
+        RaiseChanged();
+    }
+
+    /// <summary>取字：单击定锚点，双击取词，三击取行。</summary>
+    private void BeginTextSelection(PointI gpt, int clickCount)
+    {
+        if (TextLayer is not { IsEmpty: false } layer)
+        {
+            _textAnchor = _textCaret = 0;
+            return;
+        }
+
+        int caret = layer.CaretAt(gpt);
+        if (clickCount >= 3)
+        {
+            var (s, e) = layer.LineAt(caret);
+            _textAnchor = s;
+            _textCaret = e;
+        }
+        else if (clickCount == 2)
+        {
+            var (s, e) = layer.WordAt(caret);
+            _textAnchor = s;
+            _textCaret = e;
+        }
+        else
+        {
+            _textAnchor = _textCaret = caret;
+            DragMode = DragMode.TextSelect;
+        }
+    }
+
+    /// <summary>复制当前选中的文字；未选中时复制整层。</summary>
+    public void CopyTextSelection()
+    {
+        if (TextLayer is not { IsEmpty: false } layer) return;
+
+        string text = HasTextSelection
+            ? layer.Slice(TextSelectionStart, TextSelectionEnd)
+            : layer.FullText;
+
+        if (!string.IsNullOrEmpty(text))
+        {
+            TraceLog.Log($"Text selection copied chars={text.Length}");
+            TextCopyRequested?.Invoke(text);
+        }
+    }
+
+    /// <summary>后台识别完成，装入文字层。</summary>
+    public void SetTextLayer(Ocr.TextLayer layer, RectI source)
+    {
+        TextLayer = layer;
+        _textLayerSource = source;
+        TextLayerLoading = false;
+        _textAnchor = _textCaret = 0;
+        TraceLog.Log($"TextLayer ready chars={layer.Length} lines={layer.LineBoxes.Count}");
+        RaiseChanged();
+    }
+
+    /// <summary>识别失败或无文字：结束加载态，保留空层避免反复重试。</summary>
+    public void SetTextLayerFailed()
+    {
+        TextLayerLoading = false;
+        _textLayerSource = Selection;
         RaiseChanged();
     }
 
@@ -219,6 +313,11 @@ public sealed class SessionModel
                     if (Math.Abs(gpt.X - last.X) >= 1 || Math.Abs(gpt.Y - last.Y) >= 1)
                         _strokePoints.Add(gpt);
                 }
+                break;
+
+            case DragMode.TextSelect:
+                if (TextLayer is { IsEmpty: false } layer)
+                    _textCaret = layer.CaretAt(gpt);
                 break;
         }
 
@@ -297,6 +396,9 @@ public sealed class SessionModel
             case DragMode.Draw:
                 FinishStroke(gpt);
                 break;
+
+            case DragMode.TextSelect:
+                break;   // 选区间已在拖动中更新，松手保留
         }
 
         // 双击选区内部（无工具、未移动）→ 复制退出
@@ -370,6 +472,17 @@ public sealed class SessionModel
 
     public void OnRightDown()
     {
+        // 取字模式：右键先撤销文字选择，再退出取字，不直接清掉选区
+        if (State == UIState.Selected && ActiveTool == Tool.TextSelect)
+        {
+            if (HasTextSelection)
+                _textAnchor = _textCaret = 0;
+            else
+                SetTool(Tool.None);
+            RaiseChanged();
+            return;
+        }
+
         switch (State)
         {
             case UIState.Selecting:
@@ -396,6 +509,50 @@ public sealed class SessionModel
 
     // ========== 键盘 ==========
 
+    /// <summary>带修饰键的入口：Ctrl+C 复制（取字模式下复制文字）、Ctrl+A 全选文字、Ctrl+Z 撤销。</summary>
+    /// <returns>是否已处理。</returns>
+    public bool OnKey(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys mods)
+    {
+        if ((mods & System.Windows.Input.ModifierKeys.Control) != 0)
+        {
+            switch (key)
+            {
+                case System.Windows.Input.Key.C:
+                    if (ActiveTool == Tool.TextSelect && TextLayer is { IsEmpty: false })
+                    {
+                        CopyTextSelection();
+                        return true;
+                    }
+                    if (State == UIState.Selected && Selection != null)
+                    {
+                        CopyConfirmed?.Invoke();
+                        return true;
+                    }
+                    return false;
+
+                case System.Windows.Input.Key.A:
+                    if (ActiveTool == Tool.TextSelect && TextLayer is { IsEmpty: false } layer)
+                    {
+                        _textAnchor = 0;
+                        _textCaret = layer.Length;
+                        RaiseChanged();
+                        return true;
+                    }
+                    return false;
+
+                case System.Windows.Input.Key.Z:
+                    if (CanUndo)
+                    {
+                        Undo();
+                        return true;
+                    }
+                    return false;
+            }
+        }
+
+        return OnKey(key);
+    }
+
     /// <returns>是否已处理。</returns>
     public bool OnKey(System.Windows.Input.Key key)
     {
@@ -412,6 +569,13 @@ public sealed class SessionModel
                         return true;
 
                     case UIState.Selected:
+                        // 取字模式：先撤选中的文字，再退出取字，最后才轮到清选区
+                        if (ActiveTool == Tool.TextSelect && HasTextSelection)
+                        {
+                            _textAnchor = _textCaret = 0;
+                            RaiseChanged();
+                            return true;
+                        }
                         if (ActiveTool != Tool.None)
                             SetTool(Tool.None);
                         else if (Selection != null)
@@ -450,6 +614,19 @@ public sealed class SessionModel
     {
         ActiveTool = ActiveTool == tool ? Tool.None : tool;
         TraceLog.Log($"SetTool {tool} active={ActiveTool}");
+
+        if (ActiveTool == Tool.TextSelect)
+        {
+            _textAnchor = _textCaret = 0;
+            // 选区变过就得重新识别（文字层按选区内容构建）
+            if (!TextLayerLoading && (TextLayer == null || _textLayerSource != Selection))
+            {
+                TextLayer = null;
+                TextLayerLoading = true;
+                TextLayerRequested?.Invoke();
+            }
+        }
+
         RaiseChanged();
     }
 
@@ -541,6 +718,12 @@ public sealed class SessionModel
 
             case UIState.Selected:
             case UIState.TextEditing:
+                // 取字模式：选区被冻结，文字上显示文本光标
+                if (ActiveTool == Tool.TextSelect)
+                    return TextLayer is { IsEmpty: false } tl && tl.HitsText(gpt)
+                        ? System.Windows.Input.Cursors.IBeam
+                        : System.Windows.Input.Cursors.Arrow;
+
                 if (Selection is RectI sel)
                 {
                     var hit = SelectionHitTester.HitTest(sel, gpt);

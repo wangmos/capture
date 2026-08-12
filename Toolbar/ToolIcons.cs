@@ -24,6 +24,9 @@ public static class ToolIcons
 
     public static UIElement Ocr() => TextGlyph("文", 13);
 
+    /// <summary>取字：文本光标（I 形）。</summary>
+    public static UIElement TextSelect() => StrokePath("M6,3 H10 M8,3 V13 M6,13 H10");
+
     public static UIElement Pin()
     {
         var g = new Grid { Width = 16, Height = 16 };

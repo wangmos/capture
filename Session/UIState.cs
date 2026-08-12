@@ -25,6 +25,9 @@ public enum Tool
     Text,
     Mosaic,
     Number,
+
+    /// <summary>图上选字：在识别出的文字层上拖选并复制，不产生标注。</summary>
+    TextSelect,
 }
 
 public enum DragMode
@@ -44,4 +47,7 @@ public enum DragMode
 
     /// <summary>Selected 状态选区外按下、尚未决定是"扩展"还是"重选"。</summary>
     ExpandPending,
+
+    /// <summary>在文字层上拖选文本。</summary>
+    TextSelect,
 }

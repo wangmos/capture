@@ -84,6 +84,17 @@ public partial class ToolbarControl : UserControl
         ButtonsRow.Children.Add(undo);
         _buttons.Add(undo);
 
+        // 取字是模式开关（非一次性动作），所以做成 ToggleButton 并登记到工具表
+        var textSelect = new ToggleButton
+        {
+            Style = (Style)FindResource("TbToggle"),
+            Content = ToolIcons.TextSelect(),
+            ToolTip = "取字（在图上直接拖选文字，Ctrl+C 复制）",
+        };
+        textSelect.Click += (_, _) => ToolSelected?.Invoke(Tool.TextSelect);
+        _toolButtons[Tool.TextSelect] = textSelect;
+        ButtonsRow.Children.Add(textSelect);
+
         var ocr = MakeButton(ToolIcons.Ocr(), "识别图片中的文字", () => OcrClicked?.Invoke());
         ButtonsRow.Children.Add(ocr);
         _buttons.Add(ocr);
@@ -153,7 +164,8 @@ public partial class ToolbarControl : UserControl
     {
         StylePanel.Children.Clear();
 
-        if (model.ActiveTool is Tool.None)
+        // 取字没有样式可调，和"无工具"一样收起面板（也保证工具条高度不变）
+        if (model.ActiveTool is Tool.None or Tool.TextSelect)
         {
             StylePanel.Visibility = Visibility.Collapsed;
             return;
@@ -234,6 +246,49 @@ public partial class ToolbarControl : UserControl
                     StylePanel.Children.Add(holder);
                 }
                 break;
+        }
+    }
+
+    /// <summary>
+    /// 把每个按钮的屏幕矩形（物理像素）写进日志，仅在布局变化时输出一次。
+    /// UI 测试脚本据此定位按钮，避免硬编码坐标——加删按钮会让其左侧所有按钮平移。
+    /// </summary>
+    public void LogButtonRects()
+    {
+        if (!IsLoaded || ActualWidth <= 0) return;
+
+        var sb = new System.Text.StringBuilder("ToolbarRects");
+        foreach (var (tool, btn) in _toolButtons)
+            AppendRect(sb, tool.ToString(), btn);
+        foreach (var (name, btn) in NamedButtons())
+            AppendRect(sb, name, btn);
+
+        string s = sb.ToString();
+        if (s == _lastRectLog) return;
+        _lastRectLog = s;
+        Core.TraceLog.Log(s);
+    }
+
+    private string _lastRectLog = "";
+
+    private IEnumerable<(string Name, FrameworkElement Button)> NamedButtons()
+    {
+        string[] names = { "undo", "ocr", "pin", "save", "copy", "exit" };
+        for (int i = 0; i < _buttons.Count && i < names.Length; i++)
+            yield return (names[i], _buttons[i]);
+    }
+
+    private static void AppendRect(System.Text.StringBuilder sb, string name, FrameworkElement el)
+    {
+        if (el.ActualWidth <= 0 || !el.IsVisible) return;
+        try
+        {
+            var p = el.PointToScreen(new System.Windows.Point(el.ActualWidth / 2, el.ActualHeight / 2));
+            sb.Append($" {name}={(int)Math.Round(p.X)},{(int)Math.Round(p.Y)}");
+        }
+        catch
+        {
+            // 窗口还没建好句柄时 PointToScreen 会抛，忽略即可，下一轮布局还会再记
         }
     }
 

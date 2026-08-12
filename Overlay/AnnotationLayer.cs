@@ -111,6 +111,64 @@ public sealed class AnnotationLayer : FrameworkElement
             dc.Pop();
             dc.Pop();
         }
+
+        // ---------- 5. 取字模式：文字层与选中高亮 ----------
+        if (m.ActiveTool == Session.Tool.TextSelect && m.Selection is RectI sel3 && !sel3.IsEmpty)
+            RenderTextLayer(dc, m, sel3, vb);
+    }
+
+    private static readonly Pen TextBoxPen = CreateFrozenPen(Color.FromArgb(0x66, 0x1E, 0x90, 0xFF), 1);
+    private static readonly Brush TextHighlightBrush =
+        CreateFrozen(new SolidColorBrush(Color.FromArgb(0x59, 0x1E, 0x90, 0xFF)));
+    private static readonly Brush HintBackBrush =
+        CreateFrozen(new SolidColorBrush(Color.FromArgb(0xD8, 0x20, 0x20, 0x20)));
+
+    private void RenderTextLayer(DrawingContext dc, SessionModel m, RectI sel, RectI vb)
+    {
+        var clipLocal = ToLocal(sel.Intersect(vb), vb);
+        if (clipLocal.Width <= 0 || clipLocal.Height <= 0) return;
+
+        dc.PushClip(new RectangleGeometry(clipLocal));
+        dc.PushTransform(new TranslateTransform(-vb.X, -vb.Y));
+
+        if (m.TextLayer is { IsEmpty: false } layer)
+        {
+            // 文字行框：淡蓝细线，提示"这里可以选"
+            foreach (var box in layer.LineBoxes)
+                if (box.IntersectsWith(vb))
+                    dc.DrawRectangle(null, TextBoxPen, new Rect(box.X, box.Y, box.W, box.H));
+
+            if (m.HasTextSelection)
+                foreach (var r in layer.HighlightRects(m.TextSelectionStart, m.TextSelectionEnd))
+                    dc.DrawRectangle(TextHighlightBrush, null, new Rect(r.X, r.Y, r.W, r.H));
+        }
+
+        // 加载中 / 无文字 / 识别失败（层为 null 且已结束加载）都要给个交代
+        string? hint =
+            m.TextLayerLoading ? "识别中…" :
+            m.TextLayer is null or { IsEmpty: true } ? "未识别到文字" :
+            null;
+
+        if (hint != null)
+            DrawHint(dc, hint, sel);
+
+        dc.Pop();
+        dc.Pop();
+    }
+
+    /// <summary>选区左上角的状态提示（深色药丸 + 白字）。</summary>
+    private static void DrawHint(DrawingContext dc, string text, RectI sel)
+    {
+        var ft = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight, new Typeface("Microsoft YaHei"), 14,
+            Brushes.White, 1.0);
+
+        double padX = 10, padY = 6;
+        var rect = new Rect(sel.X + 8, sel.Y + 8, ft.Width + padX * 2, ft.Height + padY * 2);
+        var pill = new RectangleGeometry(rect, 4, 4);
+        pill.Freeze();
+        dc.DrawGeometry(HintBackBrush, null, pill);
+        dc.DrawText(ft, new Point(rect.X + padX, rect.Y + padY));
     }
 
     /// <summary>最近一次鼠标全局坐标（预览笔画终点）。</summary>
