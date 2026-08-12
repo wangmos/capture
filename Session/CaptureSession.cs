@@ -59,6 +59,10 @@ public sealed class CaptureSession
         _model.TextEditRequested += OnTextEditRequested;
 
         CreateWindows();
+
+        // 覆盖层已显示，此时在后台加载 OCR 模型：用户真去点识别时就不必等秒级的首次加载
+        Ocr.OcrService.Warmup();
+
         Core.TraceLog.Log($"CaptureSession ctor done, windows={_windows.Count}");
     }
 

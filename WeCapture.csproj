@@ -11,6 +11,11 @@
     <AssemblyName>WeCapture</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
+    <!-- 限定 win-x64：否则 Microsoft.ML.OnnxRuntime 会把 Android/Apple/Linux 的原生库
+         全部拷进输出（多出约 250MB）。输出目录保持不带 RID 后缀，测试脚本路径不变。 -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <Version>1.0.0</Version>
     <Product>WeCapture</Product>
@@ -24,8 +29,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Paddle.Runtime.win_x64" Version="3.3.0.1" />
-    <PackageReference Include="PaddleOCRSharp" Version="6.2.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.29.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- PP-OCRv6 small 模型随程序分发 -->
+    <None Include="Models\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

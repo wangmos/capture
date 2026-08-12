@@ -24,6 +24,8 @@ The exe lands at `bin/Debug/net10.0-windows10.0.19041.0/WeCapture.exe` (or `bin/
 taskkill //F //IM WeCapture.exe
 ```
 
+The csproj pins `RuntimeIdentifier=win-x64` with `AppendRuntimeIdentifierToOutputPath=false`. Do not remove it: `Microsoft.ML.OnnxRuntime` ships every platform's native library, and without the RID the output directory grows by ~250MB (Android `.aar`, Apple `.xcframework.zip`, Linux `.so`). Keeping the RID out of the output path is what lets the test scripts hardcode the exe path.
+
 WinForms is referenced only for tray/screen APIs; `WeCapture.csproj` removes the implicit `System.Windows.Forms` / `System.Drawing` usings and `GlobalUsings.cs` pins `Application`/`MessageBox`/`Clipboard` to the WPF types. Fully qualify the WinForms/GDI+ counterparts.
 
 ## Testing (no unit tests — driven UI tests)
@@ -69,8 +71,17 @@ Mosaic is special: `MosaicAnnotation` just clips and draws a full-selection pre-
 
 **Toolbar** (`Toolbar/ToolbarControl.xaml.cs`) is built in code, not XAML: 7 tool toggles + undo/OCR/pin/save/copy/exit, with a style sub-panel (color/thickness/font size/mosaic radius) rebuilt only when a state key changes. Exactly one overlay window shows it — the one containing the selection's bottom-right corner (`RefreshChrome`); `PlaceToolbar` flips it above the selection when it would fall off-screen.
 
-**OCR** (`Ocr/OcrService.cs`) — PaddleOCR (`PaddleOCRSharp` + `Paddle.Runtime.win_x64`, PP-OCRv5, lazily created engine) is the primary path; any failure or empty result falls back to Windows.Media.Ocr with multiple language engines scored by chars-per-word. Dark-theme captures (avg luma < 110) are inverted and small images upscaled 2× before recognition.
+**OCR** (`Ocr/`) — PP-OCRv6 **small** running on ONNX Runtime; there is no Paddle runtime and no Windows.Media.Ocr fallback any more (both were removed deliberately — see git history if you need them back).
+
+Pipeline: `OcrService.Recognize` → `TextDetector` (DB, input `[1,3,H,W]`, 32-aligned, long side capped at 1536 and short images upscaled) → `DbPostProcessor` (own implementation: flood-fill connected components → convex hull + rotating-caliper min-area rect → `d = area·ratio/perimeter` expansion, replacing PaddleOCR's Clipper offset) → `TextRecognizer` (crop each quad to height 48, width-sorted batches of 8, CTC greedy). Thresholds come from the model's own `inference.yml`: `thresh 0.2` / `box_thresh 0.45` / `unclip_ratio 1.4`.
+
+Two things worth knowing before touching this code:
+
+- **The charset comes from the rec model's `character` metadata**, not the `.txt` (which is only a fallback). 18708 dict entries → 18710 output classes = `blank` + dict + `space`; index 0 is CTC blank and the last index is a space. A mismatch here decodes to garbage, so never hardcode the count.
+- **`OcrLine.Chars` carries per-character x-ranges**, reverse-derived from CTC timesteps (timestep ↔ input width is linear). That is what makes on-image text selection possible; keep it populated when changing the decoder.
+
+`OcrService.RecognizeFixedRegion` is the rec-only path (no detection) and single-line-looking selections (`h ≤ 64 && w ≥ 4h`) take it automatically. Dark captures (avg luma < 110) are inverted first. Models live in `Models/` and are copied to the output; `OcrService.Warmup()` fires when a capture session starts so the first recognition doesn't pay model load.
 
 **Settings** are JSON at `%AppData%\WeCapture\settings.json` (`Core/AppSettings.cs`: hotkey, autostart, last save dir); the global hotkey is registered on an `HWND_MESSAGE` window in `Hotkey/HotkeyManager.cs` and re-registered live from the settings window.
 
-Removed on purpose: the long-shot / scrolling-capture feature was deleted at the user's request. Do not reintroduce it unless asked.
+Long-shot / scrolling capture: the original implementation was deleted because stitching drifted whenever the user scrolled quickly. It is being reintroduced **only** in the app-driven form — the app sends the wheel in small steps, waits for frame stability, locates each frame by cross-correlating the overlap band, retries on a low match score, and fails loudly instead of silently mis-stitching. Do not restore the old "follow the user's manual scroll" approach; that is the version that could not be made reliable.
