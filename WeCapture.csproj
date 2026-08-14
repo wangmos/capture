@@ -13,6 +13,9 @@
     <RootNamespace>WeCapture</RootNamespace>
     <AssemblyName>WeCapture</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- 内嵌到 exe：决定资源管理器/任务栏固定项里显示的图标
+         （窗口与托盘图标是运行时由 Core/IconFactory 画的，两者用的是同一套图形） -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <!-- 限定 win-x64：否则 Microsoft.ML.OnnxRuntime 会把 Android/Apple/Linux 的原生库
          全部拷进输出（多出约 250MB）。输出目录保持不带 RID 后缀，测试脚本路径不变。 -->
@@ -22,7 +25,7 @@
     <!-- 发布版不带调试符号 -->
     <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Product>WeCapture</Product>
     <Description>微信截图风格工具</Description>
   </PropertyGroup>
